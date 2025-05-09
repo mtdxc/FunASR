@@ -13,10 +13,8 @@
 #pragma warning(disable:4996)
 #endif
 
-#if defined(__APPLE__)
 #include <string.h>
-#else
-
+#if defined(ENABLE_FFMPEG)
 extern "C" {
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
@@ -25,10 +23,10 @@ extern "C" {
 #include <libavutil/samplefmt.h>
 #include <libswresample/swresample.h>
 }
-
+#else
+#define DR_MP3_IMPLEMENTATION
+#include "dr_mp3.h"
 #endif
-
-
 
 using namespace std;
 
@@ -280,8 +278,49 @@ void Audio::WavResample(int32_t sampling_rate, const float *waveform, int32_t n)
 }
 
 bool Audio::FfmpegLoad(const char *filename, bool copy2char){
-#if defined(__APPLE__)
-    return false;
+#ifndef ENABLE_FFMPEG
+    drmp3_uint64 samples = 0;
+    drmp3_config config;
+    float* pcm = drmp3_open_file_and_read_pcm_frames_f32(filename, &config, &samples, nullptr);
+    if (!pcm || !samples) {
+        LOG(ERROR) << "Error: Could not open input file.";
+        return false;
+    }
+    if (speech_data != nullptr) {
+        free(speech_data);
+        speech_data = nullptr;
+    }
+    if (speech_char != nullptr) {
+        free(speech_char);
+        speech_char = nullptr;
+    }
+    offset = 0;
+    speech_len = samples;
+    speech_data = (float*)malloc(sizeof(float) * samples);
+    if (config.channels != 1) {
+        int j = 0;
+        for (int i = 0; i < samples; i++) {
+            speech_data[i] = pcm[j];
+            j += config.channels;
+        }
+    }
+    else {
+        memcpy(speech_data, pcm, sizeof(float) * samples);
+    }
+    drmp3_free(pcm, nullptr);
+    if (config.sampleRate != dest_sample_rate) {
+        WavResample(config.sampleRate, speech_data, samples);
+    }
+    if (copy2char) {
+        short* data = (short*)malloc(sizeof(short) * speech_len);
+        for (size_t i = 0; i < speech_len; i++) {
+            data[i] = speech_data[i] * 32768;
+        }
+        speech_char = (char*)data;
+    }
+    AudioFrame* frame = new AudioFrame(speech_len);
+    frame_queue.push(frame);
+    return true;
 #else
     // from file
     AVFormatContext* formatContext = avformat_alloc_context();
@@ -442,8 +481,37 @@ bool Audio::FfmpegLoad(const char *filename, bool copy2char){
 }
 
 bool Audio::FfmpegLoad(const char* buf, int n_file_len){
-#if defined(__APPLE__)
-    return false;
+#ifndef ENABLE_FFMPEG
+    drmp3_uint64 samples = 0;
+    drmp3_config config;
+    float* pcm = drmp3_open_memory_and_read_pcm_frames_f32(buf, n_file_len, &config, &samples, nullptr);
+    if (!pcm || !samples) {
+        LOG(ERROR) << "Error: Could not open input file.";
+        return false;
+    }
+    if (speech_data != nullptr) {
+        free(speech_data);
+        speech_data = nullptr;
+    }
+    speech_len = samples;
+    speech_data = (float*)malloc(sizeof(float) * samples);
+    if (config.channels != 1) {
+        int j = 0;
+        for (int i = 0; i < samples; i++) {
+            speech_data[i] = pcm[j];
+            j += config.channels;
+        }
+    }
+    else {
+        memcpy(speech_data, pcm, sizeof(float) * samples);
+    }
+    drmp3_free(pcm, nullptr);
+    if (config.sampleRate != dest_sample_rate) {
+        WavResample(config.sampleRate, speech_data, samples);
+    }
+    AudioFrame* frame = new AudioFrame(speech_len);
+    frame_queue.push(frame);
+    return true;
 #else
     // from buf
     void* buf_copy = av_malloc(n_file_len);
