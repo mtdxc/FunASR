@@ -99,9 +99,9 @@ void FsmnVad::Forward(
     // 4. Onnx infer
     std::vector<Ort::Value> vad_ort_outputs;
     try {
-        vad_ort_outputs = vad_session_->Run(
-                Ort::RunOptions{nullptr}, vad_in_names_.data(), vad_inputs.data(),
-                vad_inputs.size(), vad_out_names_.data(), vad_out_names_.size());
+        vad_ort_outputs = vad_session_->Run(Ort::RunOptions{nullptr}, 
+            vad_in_names_.data(), vad_inputs.data(), vad_inputs.size(), 
+            vad_out_names_.data(), vad_out_names_.size());
     } catch (std::exception const &e) {
         LOG(ERROR) << "Error when run vad onnx forword: " << (e.what());
         return;

@@ -147,6 +147,13 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi kaldi)
 
 # install openssl first apt-get install libssl-dev
 find_package(OpenSSL REQUIRED)
+if(OPENSSL_FOUND)
+  include_directories(${OPENSSL_INCLUDE_DIR})
+  message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+  message(STATUS "OpenSSL lib dir: ${OPENSSL_LIBRARIES}")
+else()
+  message(FATAL_ERROR "OpenSSL not found")
+endif()
 
 message("CXX_FLAGS "${CMAKE_CXX_FLAGS})
 # 获取项目中所有包含文件夹的路径

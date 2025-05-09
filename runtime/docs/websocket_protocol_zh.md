@@ -72,7 +72,7 @@ message为（需要用json序列化）：
 `wav_format`：表示音视频文件后缀名，只支持pcm音频流
 `is_speaking`：表示断句尾点，例如，vad切割点，或者一条wav结束
 `chunk_size`：表示流式模型latency配置，`[5,10,5]`，表示当前音频为600ms，并且回看300ms，又看300ms。
-`audio_fs`：当输入音频为pcm数据是，需要加上音频采样率参数
+`audio_fs`：当输入音频为pcm数据时，需要加上音频采样率参数
 `hotwords`：如果使用热词，需要向服务端发送热词数据（字符串），格式为 "{"阿里巴巴":20,"通义实验室":30}"
 `itn`: 设置是否使用itn，默认True
 `svs_lang`: 设置SenseVoiceSmall模型语种，默认为“auto”

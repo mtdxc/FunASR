@@ -55,13 +55,26 @@ typedef struct {
     float snippet_time=0;
 } FUNASR_RECOG_RESULT;
 
-typedef struct {
+struct FUNASR_MESSAGE {
+  using Ptr = std::shared_ptr<FUNASR_MESSAGE>;
+  FUNASR_MESSAGE();
+  ~FUNASR_MESSAGE();
+  bool is_eof=false;
+  void setEof() {
+    unique_lock guard_decoder(thread_lock);
+    is_eof=true;
+  }
+  int access_num=0;
+  void addAccessNum(int delta = 1) {
+    unique_lock guard_decoder(thread_lock);
+    access_num += delta;
+  }
   nlohmann::json msg;
   std::shared_ptr<std::vector<char>> samples;
-  std::shared_ptr<std::vector<std::vector<float>>> hotwords_embedding=nullptr;
-  std::shared_ptr<websocketpp::lib::mutex> thread_lock; // lock for each connection
+  std::vector<std::vector<float>> hotwords_embedding;
+  websocketpp::lib::mutex thread_lock; // lock for each connection
   FUNASR_DEC_HANDLE decoder_handle=nullptr;
-} FUNASR_MESSAGE;
+};
 
 // See https://wiki.mozilla.org/Security/Server_Side_TLS for more details about
 // the TLS modes. The code below demonstrates how to implement both the modern
@@ -115,16 +128,8 @@ class WebSocketServer {
   }
   void do_decoder(const std::vector<char>& buffer,
                   websocketpp::connection_hdl& hdl, 
-                  nlohmann::json& msg,
-                  websocketpp::lib::mutex& thread_lock,
-                  std::vector<std::vector<float>> &hotwords_embedding,
-                  std::string wav_name, 
-                  bool itn,
-                  int audio_fs,
-                  std::string wav_format,
-                  FUNASR_DEC_HANDLE& decoder_handle,
-                  std::string svs_lang,
-                  bool sys_itn);
+                  FUNASR_MESSAGE::Ptr msg,
+                  std::vector<std::vector<float>> &hotwords_embedding);
 
   void initAsr(std::map<std::string, std::string>& model_path, int thread_num, bool use_gpu=false, int batch_size=1);
   void on_message(websocketpp::connection_hdl hdl, message_ptr msg);

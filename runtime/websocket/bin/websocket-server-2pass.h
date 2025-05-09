@@ -28,7 +28,7 @@
 #include <websocketpp/common/thread.hpp>
 #include <websocketpp/config/asio.hpp>
 #include <websocketpp/server.hpp>
-
+#include <mutex>
 #include "asio.hpp"
 #include "com-define.h"
 #include "funasrruntime.h"
@@ -51,18 +51,33 @@ typedef struct {
   float snippet_time;
 } FUNASR_RECOG_RESULT;
 
-typedef struct {
+struct FUNASR_MESSAGE {
   nlohmann::json msg;
   std::shared_ptr<std::vector<char>> samples;
-  std::shared_ptr<std::vector<std::vector<std::string>>> punc_cache;
-  std::shared_ptr<std::vector<std::vector<float>>> hotwords_embedding=nullptr;
-  std::shared_ptr<websocketpp::lib::mutex> thread_lock; // lock for each connection
+  std::vector<std::vector<std::string>> punc_cache;
+  std::vector<std::vector<float>> hotwords_embedding;
+  websocketpp::lib::mutex thread_lock; // lock for each connection
   FUNASR_HANDLE tpass_online_handle=nullptr;
   std::string online_res = "";
   std::string tpass_res = "";
   std::shared_ptr<asio::io_context::strand>  strand_; // for data execute in order
-  FUNASR_DEC_HANDLE decoder_handle=nullptr; 
-} FUNASR_MESSAGE;
+  FUNASR_DEC_HANDLE decoder_handle=nullptr;
+
+  bool is_eof=false;
+  void setEof() {
+    unique_lock guard_decoder(thread_lock);
+    is_eof=true;
+  }
+  int access_num=0;
+  void addAccessNum(int delta = 1) {
+    unique_lock guard_decoder(thread_lock);
+    access_num += delta;
+  }
+  
+  FUNASR_MESSAGE();
+  ~FUNASR_MESSAGE();
+  using Ptr = std::shared_ptr<FUNASR_MESSAGE>;
+};
 
 // See https://wiki.mozilla.org/Security/Server_Side_TLS for more details about
 // the TLS modes. The code below demonstrates how to implement both the modern
@@ -115,19 +130,10 @@ class WebSocketServer {
     }
   }
   void do_decoder(std::vector<char>& buffer, websocketpp::connection_hdl& hdl,
-                  nlohmann::json& msg,
+                  FUNASR_MESSAGE::Ptr msg,
                   std::vector<std::vector<std::string>>& punc_cache,
                   std::vector<std::vector<float>> &hotwords_embedding,
-                  websocketpp::lib::mutex& thread_lock, bool& is_final,
-                  std::string wav_name,
-                  std::string modetype,
-                  bool itn,
-                  int audio_fs,
-                  std::string wav_format,
-                  FUNASR_HANDLE& tpass_online_handle,
-                  FUNASR_DEC_HANDLE& decoder_handle,
-                  std::string svs_lang,
-                  bool sys_itn);
+                  bool is_final);
 
   void initAsr(std::map<std::string, std::string>& model_path, int thread_num);
   void on_message(websocketpp::connection_hdl hdl, message_ptr msg);
