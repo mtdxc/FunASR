@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 namespace funasr {
+
 OfflineStream::OfflineStream(std::map<std::string, std::string>& model_path, int thread_num, bool use_gpu, int batch_size)
 {
     // VAD model
@@ -17,10 +18,9 @@ OfflineStream::OfflineStream(std::map<std::string, std::string>& model_path, int
         vad_config_path = PathAppend(model_path.at(VAD_DIR), VAD_CONFIG_NAME);
         if (access(vad_model_path.c_str(), F_OK) != 0 ||
             access(vad_cmvn_path.c_str(), F_OK) != 0 ||
-            access(vad_config_path.c_str(), F_OK) != 0 )
-        {
+            access(vad_config_path.c_str(), F_OK) != 0 ) {
             LOG(INFO) << "VAD model file is not exist, skip load vad model.";
-        }else{
+        } else {
             vad_handle = make_unique<FsmnVad>();
             vad_handle->InitVad(vad_model_path, vad_cmvn_path, vad_config_path, thread_num);
             use_vad = true;
@@ -152,9 +152,7 @@ OfflineStream::OfflineStream(std::map<std::string, std::string>& model_path, int
 
 OfflineStream *CreateOfflineStream(std::map<std::string, std::string>& model_path, int thread_num, bool use_gpu, int batch_size)
 {
-    OfflineStream *mm;
-    mm = new OfflineStream(model_path, thread_num, use_gpu, batch_size);
-    return mm;
+    return new OfflineStream(model_path, thread_num, use_gpu, batch_size);
 }
 
 } // namespace funasr

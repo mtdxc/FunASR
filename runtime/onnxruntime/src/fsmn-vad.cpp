@@ -99,9 +99,9 @@ void FsmnVad::Forward(
     // 4. Onnx infer
     std::vector<Ort::Value> vad_ort_outputs;
     try {
-        vad_ort_outputs = vad_session_->Run(
-                Ort::RunOptions{nullptr}, vad_in_names_.data(), vad_inputs.data(),
-                vad_inputs.size(), vad_out_names_.data(), vad_out_names_.size());
+        vad_ort_outputs = vad_session_->Run(Ort::RunOptions{nullptr}, 
+            vad_in_names_.data(), vad_inputs.data(), vad_inputs.size(), 
+            vad_out_names_.data(), vad_out_names_.size());
     } catch (std::exception const &e) {
         LOG(ERROR) << "Error when run vad onnx forword: " << (e.what());
         return;
@@ -116,15 +116,14 @@ void FsmnVad::Forward(
     out_prob->resize(num_outputs);
     for (int i = 0; i < num_outputs; i++) {
         (*out_prob)[i].resize(output_dim);
-        memcpy((*out_prob)[i].data(), logp_data + i * output_dim,
-               sizeof(float) * output_dim);
+        memcpy((*out_prob)[i].data(), logp_data + i * output_dim, sizeof(float) * output_dim);
     }
   
-    // get 4 caches outputs,each size is 128*19
+    // get 4 caches outputs, each size is 128*19
     if(!is_final){
         for (int i = 1; i < 5; i++) {
-        float* data = vad_ort_outputs[i].GetTensorMutableData<float>();
-        memcpy((*in_cache)[i-1].data(), data, sizeof(float) * 128*19);
+            float* data = vad_ort_outputs[i].GetTensorMutableData<float>();
+            memcpy((*in_cache)[i-1].data(), data, sizeof(float) * 128*19);
         }
     }
 }

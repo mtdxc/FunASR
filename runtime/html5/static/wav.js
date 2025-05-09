@@ -15,6 +15,7 @@ Recorder.prototype.enc_wav={
 	stable:true
 	,testmsg:"支持位数8位、16位（填在比特率里面），采样率取值无限制"
 };
+
 Recorder.prototype.wav=function(res,True,False){
 		var This=this,set=This.set
 			,size=res.length

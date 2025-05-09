@@ -9,12 +9,11 @@
 #include <string>
 #include <vector>
 #include <map>
-using namespace std;
 
 namespace funasr {
 class SegDict {
   private:
-    std::map<string, std::vector<string>> seg_dict;
+    std::map<std::string, std::vector<std::string>> seg_dict;
 
   public:
     SegDict(const char *filename);

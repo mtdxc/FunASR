@@ -66,7 +66,6 @@ int main(int argc, char *argv[])
     gettimeofday(&start, nullptr);
     int thread_num = 1;
     FUNASR_HANDLE asr_handle=FunASRInit(model_path, thread_num, ASR_ONLINE);
-
     if (!asr_handle)
     {
         LOG(ERROR) << "FunVad init failed";
@@ -130,10 +129,11 @@ int main(int argc, char *argv[])
                 exit(-1);
             }
 		}
+
         char* speech_buff = audio.GetSpeechChar();
         int buff_len = audio.GetSpeechLen()*2;
 
-        int step = 9600*2;
+        int step = 9600*2; // 600ms
         bool is_final = false;
 
         string final_res="";

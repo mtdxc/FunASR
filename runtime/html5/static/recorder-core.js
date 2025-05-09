@@ -42,6 +42,7 @@ Recorder.IsOpen=function(){
 	};
 	return false;
 };
+
 /*H5录音时的AudioContext缓冲大小。会影响H5录音时的onProcess调用速率，相对于AudioContext.sampleRate=48000时，4096接近12帧/s，调节此参数可生成比较流畅的回调动画。
 	取值256, 512, 1024, 2048, 4096, 8192, or 16384
 	注意，取值不能过低，2048开始不同浏览器可能回调速率跟不上造成音质问题。

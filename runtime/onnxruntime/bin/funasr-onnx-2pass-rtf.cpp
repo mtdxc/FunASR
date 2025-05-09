@@ -39,7 +39,7 @@ bool is_target_file(const std::string& filename, const std::string target) {
 
 void GetValue(TCLAP::ValueArg<std::string>& value_arg, string key, std::map<std::string, std::string>& model_path)
 {
-    model_path.insert({key, value_arg.getValue()});
+    model_path.insert({key, value_arg.getValue()}); // model_path[key] = value_arg.getValue();
     LOG(INFO)<< key << " : " << value_arg.getValue();
 }
 
