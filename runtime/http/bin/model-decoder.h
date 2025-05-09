@@ -43,8 +43,6 @@ class ModelDecoder {
 
   FUNASR_HANDLE initAsr(std::map<std::string, std::string> &model_path, int thread_num);
 
- 
- 
   asio::io_context &io_decoder_;  // threads for asr decoder
   FUNASR_HANDLE get_asr_handle()
   {

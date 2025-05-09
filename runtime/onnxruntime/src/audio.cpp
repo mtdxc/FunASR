@@ -120,7 +120,7 @@ class AudioWindow {
     int *window;
     int in_idx;
     int out_idx;
-    int sum;
+    int sum; // 计算总能量
     int window_size = 0;
 
   public:
@@ -256,18 +256,14 @@ float Audio::GetTimeLen()
     return (float)speech_len / dest_sample_rate;
 }
 
-void Audio::WavResample(int32_t sampling_rate, const float *waveform,
-                          int32_t n)
+void Audio::WavResample(int32_t sampling_rate, const float *waveform, int32_t n)
 {
     LOG(INFO) << "Creating a resampler: "
               << " in_sample_rate: "<< sampling_rate
               << " output_sample_rate: " << static_cast<int32_t>(dest_sample_rate);
-    float min_freq =
-        std::min<int32_t>(sampling_rate, dest_sample_rate);
+    float min_freq = std::min<int32_t>(sampling_rate, dest_sample_rate);
     float lowpass_cutoff = 0.99 * 0.5 * min_freq;
-
     int32_t lowpass_filter_width = 6;
-
     auto resampler = std::make_unique<LinearResample>(
           sampling_rate, dest_sample_rate, lowpass_cutoff, lowpass_filter_width);
     std::vector<float> samples;
@@ -279,8 +275,8 @@ void Audio::WavResample(int32_t sampling_rate, const float *waveform,
         speech_data = nullptr;
     }
     speech_data = (float*)malloc(sizeof(float) * speech_len);
-    memset(speech_data, 0, sizeof(float) * speech_len);
-    copy(samples.begin(), samples.end(), speech_data);
+    memcpy(speech_data, samples.data(), sizeof(float) * speech_len);
+    //copy(samples.begin(), samples.end(), speech_data);
 }
 
 bool Audio::FfmpegLoad(const char *filename, bool copy2char){
@@ -714,9 +710,10 @@ bool Audio::LoadWav2Char(const char *filename, int32_t* sampling_rate)
         return false;
     }
     header.SeekToDataChunk(is);
-        if (!is) {
-            return false;
+    if (!is) {
+        return false;
     }
+    /*
     if (!header.Validate()) {
         return false;
     }
@@ -724,7 +721,7 @@ bool Audio::LoadWav2Char(const char *filename, int32_t* sampling_rate)
     if (!is) {
         return false;
     }
-    
+    */
     *sampling_rate = header.sample_rate;
     // header.subchunk2_size contains the number of bytes in the data.
     // As we assume each sample contains two bytes, so it is divided by 2 here
@@ -1023,6 +1020,7 @@ int Audio::Fetch(float *&dout, int &len, int &flag, float &start_time)
     }
 }
 
+// 批量获取接口
 int Audio::Fetch(float**& dout, int*& len, int*& flag, float*& start_time, int batch_size, int &batch_in)
 {
     batch_in = std::min((int)frame_queue.size(), batch_size);
@@ -1053,8 +1051,9 @@ int Audio::FetchDynamic(float**& dout, int*& len, int*& flag, float*& start_time
 {
     //compute batch size
     queue<AudioFrame *> frame_batch;
-    int max_acc = 300*1000*seg_sample;
-    int max_sent = 60*1000*seg_sample;
+    
+    int max_acc = 300*1000*seg_sample; // 300s
+    int max_sent = 60*1000*seg_sample; // 60s
     int bs_acc = 0;
     int max_len = 0;
     int max_batch = 1;

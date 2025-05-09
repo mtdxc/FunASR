@@ -67,9 +67,11 @@ class DLLAPI Audio {
     Audio(int model_sample_rate,int data_type);
     Audio(int model_sample_rate,int data_type, int size);
     ~Audio();
+    
     void ClearQueue(std::queue<AudioFrame*>& q);
     void Disp();
     void WavResample(int32_t sampling_rate, const float *waveform, int32_t n);
+
     bool LoadWav(const char* buf, int n_len, int32_t* sampling_rate);
     bool LoadWav(const char* filename, int32_t* sampling_rate, bool resample=true);
     bool LoadWav2Char(const char* filename, int32_t* sampling_rate);
@@ -79,17 +81,21 @@ class DLLAPI Audio {
     bool LoadOthers2Char(const char* filename);
     bool FfmpegLoad(const char *filename, bool copy2char=false);
     bool FfmpegLoad(const char* buf, int n_file_len);
+
     int FetchChunck(AudioFrame *&frame);
     int FetchTpass(AudioFrame *&frame);
     int Fetch(float *&dout, int &len, int &flag);
     int Fetch(float *&dout, int &len, int &flag, float &start_time);
     int Fetch(float **&dout, int *&len, int *&flag, float*& start_time, int batch_size, int &batch_in);
     int FetchDynamic(float **&dout, int *&len, int *&flag, float*& start_time, int batch_size, int &batch_in);
+
     void Padding();
+
     void Split(OfflineStream* offline_streamj);
     void CutSplit(OfflineStream* offline_streamj, std::vector<int> &index_vector);
     void Split(VadModel* vad_obj, vector<std::vector<int>>& vad_segments, bool input_finished=true);
     void Split(VadModel* vad_obj, int chunk_len, bool input_finished=true, ASR_TYPE asr_mode=ASR_TWO_PASS);
+
     float GetTimeLen();
     int GetQueueSize() { return (int)frame_queue.size(); }
     char* GetSpeechChar(){return speech_char;}

@@ -29,8 +29,6 @@ void ModelDecoder::do_decoder(std::shared_ptr<FUNASR_MESSAGE> session_msg) {
     int audio_fs = session_msg->msg["audio_fs"];;
     std::string wav_format = session_msg->msg["wav_format"];
 
- 
-
     if (num_samples > 0 && session_msg->hotwords_embedding->size() > 0) {
       std::string asr_result = "";
       std::string stamp_res = "";
@@ -105,11 +103,8 @@ FUNASR_HANDLE ModelDecoder::initAsr(std::map<std::string, std::string> &model_pa
                            int thread_num) {
   try {
     // init model with api
-
     asr_handle = FunOfflineInit(model_path, thread_num);
-    LOG(INFO) << "model successfully inited";
-
- 
+    LOG(INFO) << "model successfully inited"; 
     return asr_handle;
 
   } catch (const std::exception &e) {

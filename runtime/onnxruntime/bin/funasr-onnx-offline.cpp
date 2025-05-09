@@ -21,7 +21,7 @@
 #include "util.h"
 #include "audio.h"
 using namespace std;
-
+// 判断扩展名是否一致
 bool is_target_file(const std::string& filename, const std::string target) {
     std::size_t pos = filename.find_last_of(".");
     if (pos == std::string::npos) {
@@ -100,12 +100,12 @@ int main(int argc, char** argv)
     bool use_gpu_ = use_gpu.getValue();
     int batch_size_ = batch_size.getValue();
     FUNASR_HANDLE asr_hanlde=FunOfflineInit(model_path, thread_num, use_gpu_, batch_size_);
-
     if (!asr_hanlde)
     {
         LOG(ERROR) << "FunASR init failed";
         exit(-1);
     }
+    
     float glob_beam = 3.0f;
     float lat_beam = 3.0f;
     float am_sc = 10.0f;

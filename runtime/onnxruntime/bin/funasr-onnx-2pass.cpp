@@ -34,7 +34,7 @@ bool is_target_file(const std::string& filename, const std::string target) {
 void GetValue(TCLAP::ValueArg<std::string>& value_arg, string key, std::map<std::string, std::string>& model_path)
 {
     model_path.insert({key, value_arg.getValue()});
-    LOG(INFO)<< key << " : " << value_arg.getValue();
+    LOG(INFO) << key << " : " << value_arg.getValue();
 }
 
 int main(int argc, char** argv)
@@ -110,13 +110,14 @@ int main(int argc, char** argv)
         LOG(ERROR) << "Wrong asr-mode : " << model_path[ASR_MODE];
         exit(-1);
     }
-    FUNASR_HANDLE tpass_handle=FunTpassInit(model_path, thread_num);
 
+    FUNASR_HANDLE tpass_handle=FunTpassInit(model_path, thread_num);
     if (!tpass_handle)
     {
         LOG(ERROR) << "FunTpassInit init failed";
         exit(-1);
     }
+    
     float glob_beam = 3.0f;
     float lat_beam = 3.0f;
     float am_sc = 10.0f;
@@ -214,6 +215,7 @@ int main(int argc, char** argv)
                 } else {
                     is_final = false;
             }
+            
             gettimeofday(&start, nullptr);
             FUNASR_RESULT result = FunTpassInferBuffer(tpass_handle, tpass_online_handle, 
                 speech_buff+sample_offset, step, punc_cache, is_final, sampling_rate_, "pcm", 

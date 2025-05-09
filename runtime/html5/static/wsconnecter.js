@@ -15,7 +15,7 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 			  
 	this.wsStart = function () {
 		var Uri = document.getElementById('wssip').value; //"wss://111.205.137.58:5821/wss/" //设置wss asr online接口地址 如 wss://X.X.X.X:port/wss/
-		if(Uri.match(/wss:\S*|ws:\S*/))
+		if (Uri.match(/wss:\S*|ws:\S*/))
 		{
 			console.log("Uri"+Uri);
 		}
@@ -29,10 +29,10 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 			speechSokt = new WebSocket( Uri ); // 定义socket连接对象
 			speechSokt.onopen = function(e){onOpen(e);}; // 定义响应函数
 			speechSokt.onclose = function(e){
-			    console.log("onclose ws!");
-			    //speechSokt.close();
+				console.log("onclose ws!");
+				//speechSokt.close();
 				onClose(e);
-				};
+			};
 			speechSokt.onmessage = function(e){onMessage(e);};
 			speechSokt.onerror = function(e){onError(e);};
 			return 1;
@@ -45,7 +45,7 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 	
 	// 定义停止与发送函数
 	this.wsStop = function () {
-		if(speechSokt != undefined) {
+		if (speechSokt != undefined) {
 			console.log("stop ws!");
 			speechSokt.close();
 		}
@@ -53,12 +53,9 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 	
 	this.wsSend = function ( oneData ) {
  
-		if(speechSokt == undefined) return;
+		if (speechSokt == undefined) return;
 		if ( speechSokt.readyState === 1 ) { // 0:CONNECTING, 1:OPEN, 2:CLOSING, 3:CLOSED
- 
 			speechSokt.send( oneData );
- 
-			
 		}
 	};
 	
@@ -103,16 +100,13 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 	}
 	
 	function onMessage( e ) {
- 
 		msgHandle( e );
 	}
 	
 	function onError( e ) {
- 
 		info_div.innerHTML="连接"+e;
 		console.log(e);
 		stateHandle(2);
-		
 	}
     
  

@@ -46,14 +46,13 @@ void WaitABit() {
 std::atomic<int> wav_index(0);
 
 typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
-typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context>
-    context_ptr;
+typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
 using websocketpp::lib::bind;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
+
 context_ptr OnTlsInit(websocketpp::connection_hdl) {
-  context_ptr ctx = websocketpp::lib::make_shared<asio::ssl::context>(
-      asio::ssl::context::sslv23);
+  context_ptr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::sslv23);
 
   try {
     ctx->set_options(

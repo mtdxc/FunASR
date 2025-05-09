@@ -455,26 +455,21 @@
 //#if !defined(__APPLE__)
 	_FUNASRAPI const std::vector<std::vector<float>> CompileHotwordEmbedding(FUNASR_HANDLE handle, std::string &hotwords, ASR_TYPE mode)
 	{
+		std::vector<std::vector<float>> emb;
 		if (mode == ASR_OFFLINE){
 			funasr::OfflineStream* offline_stream = (funasr::OfflineStream*)handle;
-    		std::vector<std::vector<float>> emb;
-			if (!offline_stream)
-				return emb;
-			return (offline_stream->asr_handle)->CompileHotwordEmbedding(hotwords);
+			if (offline_stream)
+				emb = (offline_stream->asr_handle)->CompileHotwordEmbedding(hotwords);
 		}
 		else if (mode == ASR_TWO_PASS){
 			funasr::TpassStream* tpass_stream = (funasr::TpassStream*)handle;
-    		std::vector<std::vector<float>> emb;
-			if (!tpass_stream)
-				return emb;
-			return (tpass_stream->asr_handle)->CompileHotwordEmbedding(hotwords);
+			if (tpass_stream)
+				emb = (tpass_stream->asr_handle)->CompileHotwordEmbedding(hotwords);
 		}
 		else{
 			LOG(ERROR) << "Not implement: Online model does not support Hotword yet!";
-			std::vector<std::vector<float>> emb;
-			return emb;
 		}
-		
+		return emb;		
 	}
 //#endif
 
@@ -494,8 +489,6 @@
 		if (!vad_online_handle)
 			return nullptr;
 
-		funasr::Audio* audio = ((funasr::FsmnVadOnline*)vad_online_handle)->audio_handle.get();
-
 		funasr::Model* asr_online_handle = (tpass_online_stream->asr_online_handle).get();
 		if (!asr_online_handle)
 			return nullptr;
@@ -509,6 +502,7 @@
 		if (!punc_online_handle)
 			return nullptr;
 
+		funasr::Audio* audio = ((funasr::FsmnVadOnline*)vad_online_handle)->audio_handle.get();
 		if(wav_format == "pcm" || wav_format == "PCM"){
 			if (!audio->LoadPcmwavOnline(sz_buf, n_len, &sampling_rate))
 				return nullptr;
@@ -885,6 +879,7 @@
 			return;
 		wfst_decoder->LoadHwsRes(inc_bias, hws_map);
 	}
+	
 	_FUNASRAPI void FunWfstDecoderUnloadHwsRes(FUNASR_DEC_HANDLE handle)
 	{
 		funasr::WfstDecoder* wfst_decoder = (funasr::WfstDecoder*)handle;

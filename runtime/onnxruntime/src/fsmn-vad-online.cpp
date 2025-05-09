@@ -8,8 +8,7 @@
 
 namespace funasr {
 
-void FsmnVadOnline::FbankKaldi(float sample_rate, std::vector<std::vector<float>> &vad_feats,
-                               std::vector<float> &waves) {
+void FsmnVadOnline::FbankKaldi(float sample_rate, std::vector<std::vector<float>> &vad_feats, std::vector<float> &waves) {
     knf::OnlineFbank fbank(fbank_opts_);
     // cache merge
     waves.insert(waves.begin(), input_cache_.begin(), input_cache_.end());

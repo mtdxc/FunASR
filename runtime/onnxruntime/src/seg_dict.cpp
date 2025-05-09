@@ -4,7 +4,7 @@
 */
 #include "precomp.h"
 //#include "util.h"
-//#include "seg_dict.h"
+#include "seg_dict.h"
 #include <glog/logging.h>
 
 #include <fstream>
@@ -30,12 +30,12 @@ SegDict::SegDict(const char *filename)
       if (line_item.size() > 1) {
         std::string word = line_item[0];
         std::string segs = line_item[1];
-        std::vector<string> segs_vec = split(segs, ' ');
-        seg_dict[word] = segs_vec;
+        seg_dict[word] = split(segs, ' ');
       }
     }
     LOG(INFO) << "load seg dict successfully";
 }
+
 std::vector<std::string> SegDict::GetTokensByWord(const std::string &word) {
   if (seg_dict.count(word))
     return seg_dict[word];

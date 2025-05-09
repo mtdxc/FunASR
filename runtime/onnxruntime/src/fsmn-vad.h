@@ -31,9 +31,9 @@ public:
 
     int GetVadSampleRate() { return vad_sample_rate_; };
     
-    std::shared_ptr<Ort::Session> vad_session_ = nullptr;
     Ort::Env env_;
     Ort::SessionOptions session_options_;
+    std::shared_ptr<Ort::Session> vad_session_ = nullptr;
     vector<string> m_strInputNames, m_strOutputNames;
     std::vector<const char *> vad_in_names_;
     std::vector<const char *> vad_out_names_;

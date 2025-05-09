@@ -49,7 +49,6 @@ template <typename T> Tensor<T>::Tensor(int a, int b) : size{1, 1, a, b}
 
 template <typename T> Tensor<T>::Tensor(int a, int b, int c) : size{1, a, b, c}
 {
-
     alloc_buff();
 }
 

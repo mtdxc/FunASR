@@ -20,9 +20,7 @@ TpassOnlineStream::TpassOnlineStream(TpassStream* tpass_stream, std::vector<int>
 
 TpassOnlineStream* CreateTpassOnlineStream(void* tpass_stream, std::vector<int> chunk_size)
 {
-    TpassOnlineStream *mm;
-    mm =new TpassOnlineStream((TpassStream*)tpass_stream, chunk_size);
-    return mm;
+    return new TpassOnlineStream((TpassStream*)tpass_stream, chunk_size);
 }
 
 } // namespace funasr
