@@ -18,13 +18,11 @@ class Semaphore {
 public:
     explicit Semaphore(int count = 0) : count_(count) {}
 
-    
     void acquire() {
         std::unique_lock<std::mutex> lock(mutex_);
         cv_.wait(lock, [this]() { return count_ > 0; });
         --count_;
     }
-
  
     void release() {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -37,6 +35,7 @@ private:
     std::mutex mutex_;
     std::condition_variable cv_;
 };
+
 typedef struct {
   nlohmann::json msg;
   std::shared_ptr<std::vector<char>> samples;
@@ -47,8 +46,5 @@ typedef struct {
   //std::counting_semaphore<3> sem(0);
   Semaphore sem_resultok; 
 } FUNASR_MESSAGE;
-
-
-
 
 #endif // HTTP_SERVER2_REQUEST_PARSER_HPP
