@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "nlohmann/json.hpp"
+
 #define UNIT_BEG_SIL_SYMBOL "<s>"
 #define UNIT_END_SIL_SYMBOL "</s>"
 #define UNIT_BLK_SYMBOL "<blank>"

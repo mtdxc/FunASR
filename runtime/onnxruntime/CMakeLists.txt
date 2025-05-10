@@ -20,15 +20,15 @@ else()
 endif()
 
 # json
-include(FetchContent)
-if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/json/ChangeLog.md )
-FetchContent_Declare(json
-  URL   https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
-SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/json
-)
-
-FetchContent_MakeAvailable(json)
+if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/hv/json.hpp)
+    message(STATUS "Downloading json.hpp from libhv")
+    file(DOWNLOAD
+        https://raw.githubusercontent.com/ithewei/libhv/v1.3.3/cpputil/json.hpp
+        ${PROJECT_SOURCE_DIR}/third_party/hv/json.hpp
+        #EXPECTED_HASH SHA256=2e6c8e5c6e0e2b0ed4d51b9c5b6c2e0e2e6c8e5c6e0e2b0ed4d51b9c5b6c2e0e
+    )
 endif()
+include_directories(${PROJECT_SOURCE_DIR}/third_party)
 
 # for onnxruntime
 IF(WIN32)

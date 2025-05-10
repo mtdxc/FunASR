@@ -4,6 +4,7 @@
 */
 
 #include "precomp.h"
+#include "hv/json.hpp"
 
 namespace funasr {
 CTokenizer::CTokenizer(const char* sz_yamlfile):m_ready(false)
