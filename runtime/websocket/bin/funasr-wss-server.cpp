@@ -3,7 +3,6 @@
  * Reserved. MIT License  (https://opensource.org/licenses/MIT)
  */
 /* 2022-2023 by zhaomingwork */
-
 #include "websocket-server.h"
 #ifdef _WIN32
 #include "win_func.h"
@@ -273,7 +272,7 @@ int main(int argc, char* argv[]) {
                 model_path[PUNC_DIR]="";
             }
 
-            if (use_gpu_){
+            if (use_gpu_) {
                 model_type = "torchscript";
                 if (s_blade=="true" || s_blade=="True" || s_blade=="TRUE"){
                     model_type = "bladedisc";
@@ -339,9 +338,7 @@ int main(int argc, char* argv[]) {
                         " --export-dir " + s_download_model_dir +
                         " --model_revision " + model_path["itn-revision"]
                         + " --export False "; 
-                down_itn_path  =
-                        s_download_model_dir +
-                        "/" + s_itn_path;
+                down_itn_path  = s_download_model_dir + "/" + s_itn_path;
             }
 
             int ret = system(python_cmd_itn.c_str());
@@ -381,9 +378,7 @@ int main(int argc, char* argv[]) {
                         " --export-dir " + s_download_model_dir +
                         " --model_revision " + model_path["lm-revision"]
                         + " --export False "; 
-                down_lm_path  =
-                        s_download_model_dir +
-                        "/" + s_lm_path;
+                down_lm_path  = s_download_model_dir + "/" + s_lm_path;
             }
 
             int ret = system(python_cmd_lm.c_str());
@@ -448,14 +443,8 @@ int main(int argc, char* argv[]) {
     int s_port = port.getValue();
     int s_io_thread_num = io_thread_num.getValue();
     int s_decoder_thread_num = decoder_thread_num.getValue();
-
     int s_model_thread_num = model_thread_num.getValue();
-
-    asio::io_context io_decoder;  // context for decoding
-    asio::io_context io_server;   // context for server
-
-    std::vector<std::thread> decoder_threads;
-
+    
     std::string s_certfile = certfile.getValue();
     std::string s_keyfile = keyfile.getValue();
     
@@ -471,66 +460,39 @@ int main(int argc, char* argv[]) {
       is_ssl = true;
     }
 
-    auto conn_guard = asio::make_work_guard(
-        io_decoder);  // make sure threads can wait in the queue
-    auto server_guard = asio::make_work_guard(
-        io_server);  // make sure threads can wait in the queue
-    // create threads pool
-    for (int32_t i = 0; i < s_decoder_thread_num; ++i) {
-      decoder_threads.emplace_back([&io_decoder]() { io_decoder.run(); });
+    hv::EventLoopThreadPool io_decoder;
+    io_decoder.setThreadNum(s_decoder_thread_num);
+    io_decoder.start();
+    WebSocketServer ws(&io_decoder);
+    ws.initAsr(model_path, s_model_thread_num, use_gpu_, batch_size_);  // init asr model
+
+    hv::WebSocketServer server;
+    server.setThreadNum(io_thread_num);
+    server.port = s_port;
+    if(is_ssl){
+      server.https_port = s_port + 1;
+      hssl_ctx_opt_t param;
+      memset(&param, 0, sizeof(param));
+      param.crt_file = s_certfile.c_str();
+      param.key_file = s_keyfile.c_str();
+      param.endpoint = HSSL_SERVER;
+      if (server.newSslCtx(&param) != 0) {
+        fprintf(stderr, "new SSL_CTX failed!\n");
+        return -20;
+      }
     }
+    //server.registerHttpService(&http);
+    server.registerWebSocketService(&ws);
 
-    server server_;  // server for websocket
-    wss_server wss_server_;
-    server* server = nullptr;
-    wss_server* wss_server = nullptr;
-    if (is_ssl) {
-      LOG(INFO)<< "SSL is opened!";
-      wss_server_.init_asio(&io_server);  // init asio
-      wss_server_.set_reuse_addr(
-          true);  // reuse address as we create multiple threads
-
-      // list on port for accept
-      wss_server_.listen(asio::ip::address::from_string(s_listen_ip), s_port);
-      wss_server = &wss_server_;
-    } else {
-      LOG(INFO)<< "SSL is closed!";
-      server_.init_asio(&io_server);  // init asio
-      server_.set_reuse_addr(
-          true);  // reuse address as we create multiple threads
-
-      // list on port for accept
-      server_.listen(asio::ip::address::from_string(s_listen_ip), s_port);
-      server = &server_;
-    }
-
-
-    WebSocketServer websocket_srv(
-        io_decoder, is_ssl, server, wss_server, s_certfile,
-        s_keyfile);  // websocket server for asr engine
-    websocket_srv.initAsr(model_path, s_model_thread_num, use_gpu_, batch_size_);  // init asr model
+    server.start();
 
     LOG(INFO) << "decoder-thread-num: " << s_decoder_thread_num;
     LOG(INFO) << "io-thread-num: " << s_io_thread_num;
     LOG(INFO) << "model-thread-num: " << s_model_thread_num;
     LOG(INFO) << "asr model init finished. listen on port:" << s_port;
 
-    // Start the ASIO network io_service run loop
-    std::vector<std::thread> ts;
-    // create threads for io network
-    for (size_t i = 0; i < s_io_thread_num; i++) {
-      ts.emplace_back([&io_server]() { io_server.run(); });
-    }
-    // wait for theads
-    for (size_t i = 0; i < s_io_thread_num; i++) {
-      ts[i].join();
-    }
-
-    // wait for theads
-    for (auto& t : decoder_threads) {
-      t.join();
-    }
-
+    // press Enter to stop
+    while (getchar() != '\n');
   } catch (std::exception const& e) {
     LOG(ERROR) << "Error: " << e.what();
   }

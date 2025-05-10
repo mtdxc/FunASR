@@ -24,15 +24,13 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
-#include <websocketpp/client.hpp>
-#include <websocketpp/common/thread.hpp>
-#include <websocketpp/config/asio_client.hpp>
+#include <hv/WebSocketClient.h>
 #include "util.h"
 #include "audio.h"
-#include "nlohmann/json.hpp"
+//#include "nlohmann/json.hpp"
 #include "tclap/CmdLine.h"
 #include "microphone.h"
-
+using namespace hv;
 /**
  * Define a semi-cross platform helper method that waits/sleeps for a bit.
  */
@@ -45,76 +43,38 @@ void WaitABit() {
 }
 std::atomic<int> wav_index(0);
 
-typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
-typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
-using websocketpp::lib::bind;
-using websocketpp::lib::placeholders::_1;
-using websocketpp::lib::placeholders::_2;
-
-context_ptr OnTlsInit(websocketpp::connection_hdl) {
-  context_ptr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::sslv23);
-
-  try {
-    ctx->set_options(
-        asio::ssl::context::default_workarounds | asio::ssl::context::no_sslv2 |
-        asio::ssl::context::no_sslv3 | asio::ssl::context::single_dh_use);
-
-  } catch (std::exception& e) {
-    LOG(ERROR) << e.what();
-  }
-  return ctx;
-}
 
 // template for tls or not config
-template <typename T>
-class WebsocketClient {
+class MyWebSocketClient : public WebSocketClient {
  public:
-  // typedef websocketpp::client<T> client;
-  // typedef websocketpp::client<websocketpp::config::asio_tls_client>
-  // wss_client;
-  typedef websocketpp::lib::lock_guard<websocketpp::lib::mutex> scoped_lock;
-
-  WebsocketClient(int is_ssl) : m_open(false), m_done(false) {
-    // set up access channels to only log interesting things
-    m_client.clear_access_channels(websocketpp::log::alevel::all);
-    m_client.set_access_channels(websocketpp::log::alevel::connect);
-    m_client.set_access_channels(websocketpp::log::alevel::disconnect);
-    m_client.set_access_channels(websocketpp::log::alevel::app);
-
-    // Initialize the Asio transport policy
-    m_client.init_asio();
-
+  typedef std::lock_guard<std::mutex> scoped_lock;
+  MyWebSocketClient(hv::EventLoopPtr loop = NULL) : WebSocketClient(loop), m_open(false), m_done(false) {
     // Bind the handlers we are using
-    using websocketpp::lib::bind;
-    using websocketpp::lib::placeholders::_1;
-    m_client.set_open_handler(bind(&WebsocketClient::on_open, this, _1));
-    m_client.set_close_handler(bind(&WebsocketClient::on_close, this, _1));
-
-    m_client.set_message_handler(
-        [this](websocketpp::connection_hdl hdl, message_ptr msg) {
-          on_message(hdl, msg);
-        });
-
-    m_client.set_fail_handler(bind(&WebsocketClient::on_fail, this, _1));
-    m_client.clear_access_channels(websocketpp::log::alevel::all);
+    onopen = [this]() {
+      const HttpResponsePtr& resp = getHttpResponse();
+      printf("onopen\n%s\n", resp->body.c_str());
+      // printf("response:\n%s\n", resp->Dump(true, true).c_str());
+      scoped_lock guard(m_lock);
+      m_open = true;
+    };
+    onmessage = [this](const std::string& msg) {
+      on_message(msg);
+    };
+    onclose = [this]() {
+      scoped_lock guard(m_lock);
+      m_done = true;
+    };
   }
 
-  void on_message(websocketpp::connection_hdl hdl, message_ptr msg) {
-    const std::string& payload = msg->get_payload();
-    switch (msg->get_opcode()) {
-      case websocketpp::frame::opcode::text:
+  void on_message(const std::string& payload) {
+    switch (opcode()) {
+      case WS_OPCODE_TEXT:
         nlohmann::json jsonresult = nlohmann::json::parse(payload);
         LOG(INFO) << "Thread: " << this_thread::get_id()
                   << ",on_message = " << payload;
 
         if (jsonresult["is_final"] == true) {
-          websocketpp::lib::error_code ec;
-           
-          m_client.close(hdl, websocketpp::close::status::going_away, "", ec);
-
-          if (ec) {
-            LOG(ERROR) << "Error closing connection " << ec.message();
-          }
+          close();
         }
     }
   }
@@ -125,62 +85,14 @@ class WebsocketClient {
            std::vector<int> chunk_size, const std::unordered_map<std::string, int>& hws_map,
            bool is_record=false, int use_itn=1, int svs_itn=1) {
     // Create a new connection to the given URI
-    websocketpp::lib::error_code ec;
-    typename websocketpp::client<T>::connection_ptr con =
-        m_client.get_connection(uri, ec);
-    if (ec) {
-      m_client.get_alog().write(websocketpp::log::alevel::app,
-                                "Get Connection Error: " + ec.message());
-      return;
-    }
-    // Grab a handle for this connection so we can talk to it in a thread
-    // safe manor after the event loop starts.
-    m_hdl = con->get_handle();
-
-    // Queue the connection. No DNS queries or network connections will be
-    // made until the io_service event loop is run.
-    m_client.connect(con);
-
-    // Create a thread to run the ASIO io_service event loop
-    websocketpp::lib::thread asio_thread(&websocketpp::client<T>::run,
-                                         &m_client);
     if(is_record){
       send_rec_data(asr_mode, chunk_size, hws_map, use_itn, svs_itn);
     }else{
       send_wav_data(wav_list[0], wav_ids[0], audio_fs, asr_mode, chunk_size, hws_map, use_itn, svs_itn);
     }
-
     WaitABit();
-
-    asio_thread.join();
   }
 
-  // The open handler will signal that we are ready to start sending data
-  void on_open(websocketpp::connection_hdl) {
-    m_client.get_alog().write(websocketpp::log::alevel::app,
-                              "Connection opened, starting data!");
-
-    scoped_lock guard(m_lock);
-    m_open = true;
-  }
-
-  // The close handler will signal that we should stop sending data
-  void on_close(websocketpp::connection_hdl) {
-    m_client.get_alog().write(websocketpp::log::alevel::app,
-                              "Connection closed, stopping data!");
-
-    scoped_lock guard(m_lock);
-    m_done = true;
-  }
-
-  // The fail handler will signal that we should stop sending data
-  void on_fail(websocketpp::connection_hdl) {
-    m_client.get_alog().write(websocketpp::log::alevel::app,
-                              "Connection failed, stopping data!");
-
-    scoped_lock guard(m_lock);
-    m_done = true;
-  }
   // send wav to server
   void send_wav_data(string wav_path, string wav_id, int audio_fs, std::string asr_mode,
                      std::vector<int> chunk_vector, const std::unordered_map<std::string, int>& hws_map,
@@ -226,7 +138,7 @@ class WebsocketClient {
         continue;
       }
     }
-    websocketpp::lib::error_code ec;
+    int ec;
 
     nlohmann::json jsonbegin;
     nlohmann::json chunk_size = nlohmann::json::array();
@@ -256,8 +168,7 @@ class WebsocketClient {
         std::string json_map_str = json_map.dump();
         jsonbegin["hotwords"] = json_map_str;
     }
-    m_client.send(m_hdl, jsonbegin.dump(), websocketpp::frame::opcode::text,
-                  ec);
+    ec = send(jsonbegin.dump());
 
     // fetch wav data use asr engine api
     if (wav_format == "pcm") {
@@ -277,15 +188,13 @@ class WebsocketClient {
           } else {
             send_block = len - offset;
           }
-          m_client.send(m_hdl, iArray + offset, send_block * sizeof(short),
-                websocketpp::frame::opcode::binary, ec);
+          ec = send((const char*)(iArray + offset), send_block * sizeof(short));
           offset += send_block;
         }
 
         LOG(INFO) << "sended data len=" << len * sizeof(short);
-        if (ec) {
-          m_client.get_alog().write(websocketpp::log::alevel::app,
-                                    "Send Error: " + ec.message());
+        if (ec < 0) {
+          LOG(ERROR) << "Send Error: " + ec;
           break;
         }
         delete[] iArray;
@@ -303,22 +212,19 @@ class WebsocketClient {
         } else {
           send_block = len - offset;
         }
-        m_client.send(m_hdl, others_buff + offset, send_block,
-                      websocketpp::frame::opcode::binary, ec);
+        ec = send((const char*)(others_buff + offset), send_block);
         offset += send_block;
       }
 
       LOG(INFO) << "sended data len=" << len;
-      if (ec) {
-        m_client.get_alog().write(websocketpp::log::alevel::app,
-                                  "Send Error: " + ec.message());
+      if (ec < 0) {
+        LOG(ERROR) << "Send Error: " << ec;
       }
     }
 
     nlohmann::json jsonresult;
     jsonresult["is_speaking"] = false;
-    m_client.send(m_hdl, jsonresult.dump(), websocketpp::frame::opcode::text,
-                  ec);
+    ec = send(jsonresult.dump());
     WaitABit();
   }
 
@@ -362,7 +268,6 @@ class WebsocketClient {
         continue;
       }
     }
-    websocketpp::lib::error_code ec;
 
     float sample_rate = 16000;
     nlohmann::json jsonbegin;
@@ -393,8 +298,7 @@ class WebsocketClient {
         std::string json_map_str = json_map.dump();
         jsonbegin["hotwords"] = json_map_str;
     }
-    m_client.send(m_hdl, jsonbegin.dump(), websocketpp::frame::opcode::text,
-                  ec);
+    int ec = send(jsonbegin.dump());
     // mic
     Microphone mic;
     PaDeviceIndex num_devices = Pa_GetDeviceCount();
@@ -421,8 +325,7 @@ class WebsocketClient {
 
     PaStream *stream;
     std::vector<float> buffer;
-    PaError err =
-        Pa_OpenStream(&stream, &param, nullptr, /* &outputParameters, */
+    PaError err = Pa_OpenStream(&stream, &param, nullptr, /* &outputParameters, */
                       sample_rate,
                       0,          // frames per buffer
                       paClipOff,  // we won't output out of range samples
@@ -448,13 +351,11 @@ class WebsocketClient {
         iArray[i] = (short)(buffer[i] * 32768);
       }
 
-      m_client.send(m_hdl, iArray, len * sizeof(short),
-                    websocketpp::frame::opcode::binary, ec);
+      ec = send((const char*)iArray, len * sizeof(short));
       buffer.clear();
 
-      if (ec) {
-        m_client.get_alog().write(websocketpp::log::alevel::app,
-                                  "Send Error: " + ec.message());
+      if (ec < 0) {
+        LOG(ERROR) << "Send Error: " << ec;
       }
       delete[] iArray;
       Pa_Sleep(20);  // sleep for 20ms
@@ -462,8 +363,7 @@ class WebsocketClient {
 
     nlohmann::json jsonresult;
     jsonresult["is_speaking"] = false;
-    m_client.send(m_hdl, jsonresult.dump(), websocketpp::frame::opcode::text,
-                  ec);
+    ec = send(jsonresult.dump());
     
     err = Pa_CloseStream(stream);
     if (err != paNoError) {
@@ -472,15 +372,13 @@ class WebsocketClient {
     }
   }
 
-  websocketpp::client<T> m_client;
-
  private:
-  websocketpp::connection_hdl m_hdl;
-  websocketpp::lib::mutex m_lock;
+  std::mutex m_lock;
   bool m_open;
   bool m_done;
   int total_num = 0;
 };
+using MyWebSocketClientPtr = std::shared_ptr<MyWebSocketClient>;
 
 int main(int argc, char* argv[]) {
 #ifdef _WIN32
@@ -580,22 +478,14 @@ int main(int argc, char* argv[]) {
   }
 
   int audio_fs = audio_fs_.getValue();
+  auto loop_thread = std::make_shared<EventLoopThread>();
+  loop_thread->start();
+
   if(is_record == 1){
       std::vector<string> tmp_wav_list;
       std::vector<string> tmp_wav_ids;
-
-      if (is_ssl == 1) {
-        WebsocketClient<websocketpp::config::asio_tls_client> c(is_ssl);
-
-        c.m_client.set_tls_init_handler(bind(&OnTlsInit, ::_1));
-
-        c.run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, true, use_itn, svs_itn);
-      } else {
-        WebsocketClient<websocketpp::config::asio_client> c(is_ssl);
-
-        c.run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, true, use_itn, svs_itn);
-      }
-
+      auto client = std::make_shared<MyWebSocketClient>(loop_thread->loop());
+      client->run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, true, use_itn, svs_itn);
   }else{
     // read wav_path
     std::vector<string> wav_list;
@@ -621,8 +511,9 @@ int main(int argc, char* argv[]) {
       wav_ids.emplace_back(default_id);
     }
 
+    std::map<int, MyWebSocketClientPtr> clients;
     for (size_t wav_i = 0; wav_i < wav_list.size(); wav_i = wav_i + threads_num) {
-      std::vector<websocketpp::lib::thread> client_threads;
+      std::vector<std::thread> client_threads;
       for (size_t i = 0; i < threads_num; i++) {
         if (wav_i + i >= wav_list.size()) {
           break;
@@ -632,26 +523,14 @@ int main(int argc, char* argv[]) {
 
         tmp_wav_list.emplace_back(wav_list[wav_i + i]);
         tmp_wav_ids.emplace_back(wav_ids[wav_i + i]);
-
-        client_threads.emplace_back(
-            [uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, is_ssl, hws_map, use_itn, svs_itn]() {
-              if (is_ssl == 1) {
-                WebsocketClient<websocketpp::config::asio_tls_client> c(is_ssl);
-
-                c.m_client.set_tls_init_handler(bind(&OnTlsInit, ::_1));
-
-                c.run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, false, use_itn, svs_itn);
-              } else {
-                WebsocketClient<websocketpp::config::asio_client> c(is_ssl);
-
-                c.run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, false, use_itn, svs_itn);
-              }
-            });
-      }
-
-      for (auto& t : client_threads) {
-        t.join();
+        auto client = std::make_shared<MyWebSocketClient>(loop_thread->loop());
+        client->run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, false, use_itn, svs_itn);
+        clients[i] = client;
       }
     }
   }
+  // press Enter to stop
+  while (getchar() != '\n');
+  loop_thread->stop();
+  loop_thread->join();
 }
