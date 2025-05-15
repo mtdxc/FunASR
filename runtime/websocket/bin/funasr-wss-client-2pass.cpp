@@ -31,39 +31,70 @@
 #include "tclap/CmdLine.h"
 #include "microphone.h"
 using namespace hv;
-/**
- * Define a semi-cross platform helper method that waits/sleeps for a bit.
- */
-void WaitABit() {
-#ifdef WIN32
-  Sleep(500);
-#else
-  usleep(500);
-#endif
-}
-std::atomic<int> wav_index(0);
-
 
 // template for tls or not config
 class MyWebSocketClient : public WebSocketClient {
  public:
-  typedef std::lock_guard<std::mutex> scoped_lock;
-  MyWebSocketClient(hv::EventLoopPtr loop = NULL) : WebSocketClient(loop), m_open(false), m_done(false) {
+  bool is_record_;
+  std::shared_ptr<funasr::Audio> audio;
+  std::vector<float> buffer;
+  bool sendBuffer() {
+    int len = buffer.size();
+    short* iArray = new short[len];
+    for (size_t i = 0; i < len; ++i) {
+      iArray[i] = (short)(buffer[i] * 32768);
+    }
+    buffer.clear();
+
+    int ec = send((const char*)iArray, len * sizeof(short));
+    if (ec < 0) {
+      LOG(ERROR) << "Send Error: " << ec;
+    }
+    delete[] iArray;
+    return true;
+  }
+
+  std::string wav_format;
+  nlohmann::json jsonbegin;
+  hv::TimerID tmSend = 0;
+  MyWebSocketClient(hv::EventLoopPtr loop = NULL) : WebSocketClient(loop) {
     // Bind the handlers we are using
     onopen = [this]() {
       const HttpResponsePtr& resp = getHttpResponse();
       printf("onopen\n%s\n", resp->body.c_str());
       // printf("response:\n%s\n", resp->Dump(true, true).c_str());
-      scoped_lock guard(m_lock);
-      m_open = true;
+      send(jsonbegin.dump());
+      tmSend = setInterval(20, [this](TimerID id) {
+        bool end = false;
+        if (is_record_) {
+          end = !sendBuffer();
+        }
+        else {
+          end = !send_wav_frame();
+        }
+        if (end) {
+          sendEnd();
+        }
+      });
     };
     onmessage = [this](const std::string& msg) {
       on_message(msg);
     };
     onclose = [this]() {
-      scoped_lock guard(m_lock);
-      m_done = true;
     };
+  }
+
+  ~MyWebSocketClient() {
+    if (tmSend) {
+      killTimer(tmSend);
+      tmSend = 0;
+    }
+    if (stream) {
+      int err = Pa_CloseStream(stream);
+      if (err != paNoError) {
+        LOG(INFO) << "portaudio error: " << Pa_GetErrorText(err);
+      }
+    }
   }
 
   void on_message(const std::string& payload) {
@@ -80,67 +111,43 @@ class MyWebSocketClient : public WebSocketClient {
   }
 
   // This method will block until the connection is complete
-  void run(const std::string& uri, const std::vector<string>& wav_list,
-           const std::vector<string>& wav_ids, int audio_fs, std::string asr_mode,
+  void run(const std::string& uri, const std::string& wav_list,
+           const std::string& wav_ids, int audio_fs, std::string asr_mode,
            std::vector<int> chunk_size, const std::unordered_map<std::string, int>& hws_map,
            bool is_record=false, int use_itn=1, int svs_itn=1) {
     // Create a new connection to the given URI
-    if(is_record){
-      send_rec_data(asr_mode, chunk_size, hws_map, use_itn, svs_itn);
+    is_record_ = is_record_;
+    bool ret = false;
+    if (is_record) {
+      ret = send_rec_data(asr_mode, chunk_size, hws_map, use_itn, svs_itn);
     }else{
-      send_wav_data(wav_list[0], wav_ids[0], audio_fs, asr_mode, chunk_size, hws_map, use_itn, svs_itn);
+      ret = send_wav_data(wav_list, wav_ids, audio_fs, asr_mode, chunk_size, hws_map, use_itn, svs_itn);
     }
-    WaitABit();
+    open(uri.c_str());
   }
 
   // send wav to server
-  void send_wav_data(string wav_path, string wav_id, int audio_fs, std::string asr_mode,
-                     std::vector<int> chunk_vector, const std::unordered_map<std::string, int>& hws_map,
-                     int use_itn, int svs_itn) {
+  bool send_wav_data(string wav_path, string wav_id, int audio_fs, std::string asr_mode,
+    std::vector<int> chunk_vector, const std::unordered_map<std::string, int>& hws_map,
+    int use_itn, int svs_itn) {
     uint64_t count = 0;
     std::stringstream val;
 
-    funasr::Audio audio(1);
+    audio.reset(new funasr::Audio(1));
     int32_t sampling_rate = audio_fs;
-    std::string wav_format = "pcm";
+    wav_format = "pcm";
     if (funasr::IsTargetFile(wav_path.c_str(), "wav")) {
-      if (!audio.LoadWav(wav_path.c_str(), &sampling_rate, false)) 
-        return;
-    } else if (funasr::IsTargetFile(wav_path.c_str(), "pcm")) {
-      if (!audio.LoadPcmwav(wav_path.c_str(), &sampling_rate, false)) return;
-    } else {
+      if (!audio->LoadWav(wav_path.c_str(), &sampling_rate, false))
+        return false;
+    }
+    else if (funasr::IsTargetFile(wav_path.c_str(), "pcm")) {
+      if (!audio->LoadPcmwav(wav_path.c_str(), &sampling_rate, false)) return false;
+    }
+    else {
       wav_format = "others";
-      if (!audio.LoadOthers2Char(wav_path.c_str())) return;
+      if (!audio->LoadOthers2Char(wav_path.c_str())) return false;
     }
 
-    float* buff;
-    int len;
-    int flag = 0;
-    bool wait = false;
-    while (1) {
-      {
-        scoped_lock guard(m_lock);
-        // If the connection has been closed, stop generating data
-        if (m_done) {
-          break;
-        }
-        // If the connection hasn't been opened yet wait a bit and retry
-        if (!m_open) {
-          wait = true;
-        } else {
-          break;
-        }
-      }
-
-      if (wait) {
-        // LOG(INFO) << "wait.." << m_open;
-        WaitABit();
-        continue;
-      }
-    }
-    int ec;
-
-    nlohmann::json jsonbegin;
     nlohmann::json chunk_size = nlohmann::json::array();
     chunk_size.push_back(chunk_vector[0]);
     chunk_size.push_back(chunk_vector[1]);
@@ -153,26 +160,33 @@ class MyWebSocketClient : public WebSocketClient {
     jsonbegin["is_speaking"] = true;
     jsonbegin["itn"] = true;
     jsonbegin["svs_itn"] = true;
-    if(use_itn == 0){
+    if (use_itn == 0) {
       jsonbegin["itn"] = false;
     }
-    if(svs_itn == 0){
-        jsonbegin["svs_itn"] = false;
+    if (svs_itn == 0) {
+      jsonbegin["svs_itn"] = false;
     }
-    if(!hws_map.empty()){
-        LOG(INFO) << "hotwords: ";
-        for (const auto& pair : hws_map) {
-            LOG(INFO) << pair.first << " : " << pair.second;
-        }
-        nlohmann::json json_map(hws_map);
-        std::string json_map_str = json_map.dump();
-        jsonbegin["hotwords"] = json_map_str;
+    if (!hws_map.empty()) {
+      LOG(INFO) << "hotwords: ";
+      for (const auto& pair : hws_map) {
+        LOG(INFO) << pair.first << " : " << pair.second;
+      }
+      nlohmann::json json_map(hws_map);
+      std::string json_map_str = json_map.dump();
+      jsonbegin["hotwords"] = json_map_str;
     }
-    ec = send(jsonbegin.dump());
+    return true;
+  }
+
+  int offset = 0;
+  bool send_wav_frame() {
+    float* buff;
+    int len, ec;
+    int flag = 0;
 
     // fetch wav data use asr engine api
     if (wav_format == "pcm") {
-      while (audio.Fetch(buff, len, flag) > 0) {
+      while (audio->Fetch(buff, len, flag) > 0) {
         short* iArray = new short[len];
         for (size_t i = 0; i < len; ++i) {
           iArray[i] = (short)(buff[i] * 32768);
@@ -198,12 +212,12 @@ class MyWebSocketClient : public WebSocketClient {
           break;
         }
         delete[] iArray;
+        return true;
       }
     } else {
-      int offset = 0;
       int block_size = 204800;
-      len = audio.GetSpeechLen();
-      char* others_buff = audio.GetSpeechChar();
+      len = audio->GetSpeechLen();
+      char* others_buff = audio->GetSpeechChar();
 
       while (offset < len) {
         int send_block = 0;
@@ -214,6 +228,7 @@ class MyWebSocketClient : public WebSocketClient {
         }
         ec = send((const char*)(others_buff + offset), send_block);
         offset += send_block;
+        return true;
       }
 
       LOG(INFO) << "sended data len=" << len;
@@ -221,11 +236,13 @@ class MyWebSocketClient : public WebSocketClient {
         LOG(ERROR) << "Send Error: " << ec;
       }
     }
+    return false;
+  }
 
+  void sendEnd() {
     nlohmann::json jsonresult;
     jsonresult["is_speaking"] = false;
-    ec = send(jsonresult.dump());
-    WaitABit();
+    send(jsonresult.dump());
   }
 
   static int RecordCallback(const void* inputBuffer, void* outputBuffer,
@@ -234,7 +251,6 @@ class MyWebSocketClient : public WebSocketClient {
   {
       std::vector<float>* buffer = static_cast<std::vector<float>*>(userData);
       const float* input = static_cast<const float*>(inputBuffer);
-
       for (unsigned int i = 0; i < framesPerBuffer; i++)
       {
           buffer->push_back(input[i]);
@@ -243,34 +259,11 @@ class MyWebSocketClient : public WebSocketClient {
       return paContinue;
   }
 
-  void send_rec_data(std::string asr_mode, std::vector<int> chunk_vector, 
+  PaStream* stream = nullptr;
+  bool send_rec_data(std::string asr_mode, std::vector<int> chunk_vector, 
                      const std::unordered_map<std::string, int>& hws_map, int use_itn, int svs_itn) {
-    // first message
-    bool wait = false;
-    while (1) {
-      {
-        scoped_lock guard(m_lock);
-        // If the connection has been closed, stop generating data
-        if (m_done) {
-          break;
-        }
-        // If the connection hasn't been opened yet wait a bit and retry
-        if (!m_open) {
-          wait = true;
-        } else {
-          break;
-        }
-      }
-
-      if (wait) {
-        // LOG(INFO) << "wait.." << m_open;
-        WaitABit();
-        continue;
-      }
-    }
-
+   
     float sample_rate = 16000;
-    nlohmann::json jsonbegin;
     nlohmann::json chunk_size = nlohmann::json::array();
     chunk_size.push_back(chunk_vector[0]);
     chunk_size.push_back(chunk_vector[1]);
@@ -298,7 +291,7 @@ class MyWebSocketClient : public WebSocketClient {
         std::string json_map_str = json_map.dump();
         jsonbegin["hotwords"] = json_map_str;
     }
-    int ec = send(jsonbegin.dump());
+
     // mic
     Microphone mic;
     PaDeviceIndex num_devices = Pa_GetDeviceCount();
@@ -309,7 +302,7 @@ class MyWebSocketClient : public WebSocketClient {
     param.device = Pa_GetDefaultInputDevice();
     if (param.device == paNoDevice) {
       LOG(INFO) << "No default input device found";
-      exit(EXIT_FAILURE);
+      return false;
     }
     LOG(INFO) << "Use default device: " << param.device;
 
@@ -323,8 +316,6 @@ class MyWebSocketClient : public WebSocketClient {
     param.suggestedLatency = info->defaultLowInputLatency;
     param.hostApiSpecificStreamInfo = nullptr;
 
-    PaStream *stream;
-    std::vector<float> buffer;
     PaError err = Pa_OpenStream(&stream, &param, nullptr, /* &outputParameters, */
                       sample_rate,
                       0,          // frames per buffer
@@ -333,7 +324,7 @@ class MyWebSocketClient : public WebSocketClient {
                       RecordCallback, &buffer);
     if (err != paNoError) {
       LOG(ERROR) << "portaudio error: " << Pa_GetErrorText(err);
-      exit(EXIT_FAILURE);
+      return false;
     }
 
     err = Pa_StartStream(stream);
@@ -341,41 +332,12 @@ class MyWebSocketClient : public WebSocketClient {
 
     if (err != paNoError) {
       LOG(ERROR) << "portaudio error: " << Pa_GetErrorText(err);
-      exit(EXIT_FAILURE);
+      return false;
     }
-
-    while(true){
-      int len = buffer.size();
-      short* iArray = new short[len];
-      for (size_t i = 0; i < len; ++i) {
-        iArray[i] = (short)(buffer[i] * 32768);
-      }
-
-      ec = send((const char*)iArray, len * sizeof(short));
-      buffer.clear();
-
-      if (ec < 0) {
-        LOG(ERROR) << "Send Error: " << ec;
-      }
-      delete[] iArray;
-      Pa_Sleep(20);  // sleep for 20ms
-    }
-
-    nlohmann::json jsonresult;
-    jsonresult["is_speaking"] = false;
-    ec = send(jsonresult.dump());
-    
-    err = Pa_CloseStream(stream);
-    if (err != paNoError) {
-      LOG(INFO) << "portaudio error: " << Pa_GetErrorText(err);
-      exit(EXIT_FAILURE);
-    }
+    return true;
   }
 
  private:
-  std::mutex m_lock;
-  bool m_open;
-  bool m_done;
   int total_num = 0;
 };
 using MyWebSocketClientPtr = std::shared_ptr<MyWebSocketClient>;
@@ -389,18 +351,14 @@ int main(int argc, char* argv[]) {
   FLAGS_logtostderr = true;
 
   TCLAP::CmdLine cmd("funasr-wss-client-2pass", ' ', "1.0");
-  TCLAP::ValueArg<std::string> server_ip_("", "server-ip", "server-ip", true,
-                                          "127.0.0.1", "string");
-  TCLAP::ValueArg<std::string> port_("", "port", "port", true, "10095",
-                                     "string");
-  TCLAP::ValueArg<std::string> wav_path_(
-      "", "wav-path",
+  TCLAP::ValueArg<std::string> server_ip_("", "server-ip", "server-ip", true, "127.0.0.1", "string");
+  TCLAP::ValueArg<std::string> port_("", "port", "port", true, "10095", "string");
+  TCLAP::ValueArg<std::string> wav_path_("", "wav-path",
       "the input could be: wav_path, e.g.: asr_example.wav; pcm_path, e.g.: "
       "asr_example.pcm; wav.scp, kaldi style wav list (wav_id \t wav_path)",
       false, "", "string");
   TCLAP::ValueArg<std::int32_t> audio_fs_("", "audio-fs", "the sample rate of audio", false, 16000, "int32_t");
-  TCLAP::ValueArg<int> record_(
-      "", "record",
+  TCLAP::ValueArg<int> record_("", "record",
       "record is 1 means use record", false, 0,
       "int");
   TCLAP::ValueArg<std::string> asr_mode_("", ASR_MODE, "offline, online, 2pass",
@@ -408,18 +366,14 @@ int main(int argc, char* argv[]) {
   TCLAP::ValueArg<std::string> chunk_size_("", "chunk-size",
                                            "chunk_size: 5-10-5 or 5-12-5",
                                            false, "5-10-5", "string");
-  TCLAP::ValueArg<int> thread_num_("", "thread-num", "thread-num", false, 1,
-                                   "int");
-  TCLAP::ValueArg<int> is_ssl_(
-      "", "is-ssl",
+  TCLAP::ValueArg<int> thread_num_("", "thread-num", "thread-num", false, 1, "int");
+  TCLAP::ValueArg<int> is_ssl_("", "is-ssl",
       "is-ssl is 1 means use wss connection, or use ws connection", false, 1,
       "int");
-  TCLAP::ValueArg<int> use_itn_(
-      "", "use-itn",
+  TCLAP::ValueArg<int> use_itn_("", "use-itn",
       "use-itn is 1 means use itn, 0 means not use itn", false, 1,
       "int");
-  TCLAP::ValueArg<int> svs_itn_(
-      "", "svs-itn",
+  TCLAP::ValueArg<int> svs_itn_("", "svs-itn",
       "svs-itn is 1 means use itn and punc, 0 means not use", false, 1, "int");
   TCLAP::ValueArg<std::string> hotword_("", HOTWORD,
       "the hotword file, one hotword perline, Format: Hotword Weight (could be: 阿里巴巴 20)", false, "", "string");
@@ -482,10 +436,8 @@ int main(int argc, char* argv[]) {
   loop_thread->start();
 
   if(is_record == 1){
-      std::vector<string> tmp_wav_list;
-      std::vector<string> tmp_wav_ids;
       auto client = std::make_shared<MyWebSocketClient>(loop_thread->loop());
-      client->run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, true, use_itn, svs_itn);
+      client->run(uri, "", "", audio_fs, asr_mode, chunk_size, hws_map, true, use_itn, svs_itn);
   }else{
     // read wav_path
     std::vector<string> wav_list;
@@ -513,18 +465,13 @@ int main(int argc, char* argv[]) {
 
     std::map<int, MyWebSocketClientPtr> clients;
     for (size_t wav_i = 0; wav_i < wav_list.size(); wav_i = wav_i + threads_num) {
-      std::vector<std::thread> client_threads;
       for (size_t i = 0; i < threads_num; i++) {
         if (wav_i + i >= wav_list.size()) {
           break;
         }
-        std::vector<string> tmp_wav_list;
-        std::vector<string> tmp_wav_ids;
 
-        tmp_wav_list.emplace_back(wav_list[wav_i + i]);
-        tmp_wav_ids.emplace_back(wav_ids[wav_i + i]);
         auto client = std::make_shared<MyWebSocketClient>(loop_thread->loop());
-        client->run(uri, tmp_wav_list, tmp_wav_ids, audio_fs, asr_mode, chunk_size, hws_map, false, use_itn, svs_itn);
+        client->run(uri, wav_list[wav_i + i], wav_ids[wav_i + i], audio_fs, asr_mode, chunk_size, hws_map, false, use_itn, svs_itn);
         clients[i] = client;
       }
     }

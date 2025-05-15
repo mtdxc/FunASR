@@ -26,219 +26,203 @@
 //#include "nlohmann/json.hpp"
 #include "tclap/CmdLine.h"
 using namespace hv;
-/**
- * Define a semi-cross platform helper method that waits/sleeps for a bit.
- */
-void WaitABit() {
-    #ifdef WIN32
-        Sleep(200);
-    #else
-        usleep(200);
-    #endif
-}
-std::atomic<int> wav_index(0);
 
 // template for tls or not config
 class MyWebsocketClient : public WebSocketClient {
   public:
-    typedef std::lock_guard<std::mutex> scoped_lock;
-    MyWebsocketClient(hv::EventLoopPtr loop = NULL) : WebSocketClient(loop), m_open(false), m_done(false) {
+    MyWebsocketClient(hv::EventLoopPtr loop = NULL) : WebSocketClient(loop), audio(1) {
       onopen = [this]() {
         const HttpResponsePtr& resp = getHttpResponse();
         printf("onopen\n%s\n", resp->body.c_str()); 
         // printf("response:\n%s\n", resp->Dump(true, true).c_str());
-        scoped_lock guard(m_lock);
-        m_open = true;
+        send_wav_data();
       };
       onmessage = [this](const std::string& msg) {
         on_message(msg);
       };
       onclose = [this]() {
         printf("onclose\n");
-        scoped_lock guard(m_lock);
-        m_done = true;
       };
     }
+    ~MyWebsocketClient() {
+      clearTimer();
+    }
 
+    hv::TimerID tmSend = 0;
+    void clearTimer() {
+      if (!tmSend) {
+        killTimer(tmSend);
+        tmSend = 0;
+      }
+    }
     void on_message(const std::string& payload) {
         switch (opcode()) {
         case WS_OPCODE_TEXT:
             total_recv=total_recv+1;
             LOG(INFO)<< "Thread: " << this_thread::get_id() << ", total_recv=" << total_recv <<", on_message = " << payload;
-            std::unique_lock<std::mutex> lock(msg_lock);
-            cv.notify_one();
-            if (close_client) {
+            total_send++;
+            if (total_send >= wav_list.size()) {
               LOG(INFO) << "Thread: " << this_thread::get_id() << ", close client thread";
               this->close();
+            }
+            else {
+              send_hotword = false;
+              send_wav_data();
             }
             break;
         }
     }
-
+    int wav_index = 0;
+    bool send_hotword = true;
+    std::vector<string> wav_list, wav_ids;
+    int audio_fs, use_itn, svs_itn;
+    std::unordered_map<std::string, int> hws_map;
     // This method will block until the connection is complete  
     void run(const std::vector<string>& wav_list, const std::vector<string>& wav_ids, 
              int audio_fs, const std::unordered_map<std::string, int>& hws_map, int use_itn=1, int svs_itn=1) {
-        bool send_hotword = true;
-        while(true){
-            int i = wav_index.fetch_add(1);
-            if (i >= wav_list.size()) {
-                break;
-            }
-            if (total_send !=0){
-                std::unique_lock<std::mutex> lock(msg_lock);
-                cv.wait(lock);
-            }
-            total_send += 1;
-            send_wav_data(wav_list[i], wav_ids[i], audio_fs, hws_map, send_hotword, use_itn, svs_itn);
-            if(send_hotword){
-                send_hotword = false;
-            }
-        }
-        close_client = true;
+        this->wav_list = wav_list;
+        this->wav_ids = wav_ids;
+        this->audio_fs = audio_fs;
+        this->hws_map = hws_map;
+        this->use_itn = use_itn;
+        this->svs_itn = svs_itn;
     }
 
+    funasr::Audio audio;
+    std::string wav_format;
     // send wav to server
-    void send_wav_data(string wav_path, string wav_id, int audio_fs,
-        const std::unordered_map<std::string, int>& hws_map, 
-        bool send_hotword, bool use_itn, bool svs_itn) {
-        uint64_t count = 0;
-        std::stringstream val;
+    void send_wav_data() {
+      uint64_t count = 0;
+      std::stringstream val;
+      std::string wav_path = wav_list[wav_index];
+      std::string wav_id = wav_ids[wav_index];
+      int32_t sampling_rate = audio_fs;
+      wav_format = "pcm";
+      if (funasr::IsTargetFile(wav_path.c_str(), "pcm")) {
+        if (!audio.LoadPcmwav(wav_path.c_str(), &sampling_rate, false))
+          return;
+      }
+      else {
+        wav_format = "others";
+        if (!audio.LoadOthers2Char(wav_path.c_str()))
+          return;
+      }
 
-        funasr::Audio audio(1);
-        int32_t sampling_rate = audio_fs;
-        std::string wav_format = "pcm";
-        if(funasr::IsTargetFile(wav_path.c_str(), "pcm")){
-			    if (!audio.LoadPcmwav(wav_path.c_str(), &sampling_rate, false))
-				    return ;
-		    } else {
-			    wav_format = "others";
-                if (!audio.LoadOthers2Char(wav_path.c_str()))
-				    return ;
-		    }
-
-        float* buff;
-        int len;
-        int flag = 0;
-        bool wait = false;
-        while (1) {
-            {
-                scoped_lock guard(m_lock);
-                // If the connection has been closed, stop generating data
-                if (m_done) {
-                  break;
-                }
-                // If the connection hasn't been opened yet wait a bit and retry
-                if (!m_open) {
-                  wait = true;
-                } else {
-                  break;
-                }
-            }
-            if (wait) {
-                // LOG(INFO) << "wait.." << m_open;
-                WaitABit();
-                continue;
-            }
+      nlohmann::json jsonbegin;
+      nlohmann::json chunk_size = nlohmann::json::array();
+      chunk_size.push_back(5);
+      chunk_size.push_back(10);
+      chunk_size.push_back(5);
+      jsonbegin["chunk_size"] = chunk_size;
+      jsonbegin["chunk_interval"] = 10;
+      jsonbegin["wav_name"] = wav_id;
+      jsonbegin["wav_format"] = wav_format;
+      jsonbegin["audio_fs"] = sampling_rate;
+      jsonbegin["itn"] = true;
+      jsonbegin["svs_itn"] = true;
+      if (use_itn == 0) {
+        jsonbegin["itn"] = false;
+      }
+      if (svs_itn == 0) {
+        jsonbegin["svs_itn"] = false;
+      }
+      jsonbegin["is_speaking"] = true;
+      if (send_hotword) {
+        if (!hws_map.empty()) {
+          LOG(INFO) << "hotwords: ";
+          for (const auto& pair : hws_map) {
+            LOG(INFO) << pair.first << " : " << pair.second;
+          }
+          nlohmann::json json_map(hws_map);
+          std::string json_map_str = json_map.dump();
+          jsonbegin["hotwords"] = json_map_str;
         }
-        int ec;
+      }
 
-        nlohmann::json jsonbegin;
-        nlohmann::json chunk_size = nlohmann::json::array();
-        chunk_size.push_back(5);
-        chunk_size.push_back(10);
-        chunk_size.push_back(5);
-        jsonbegin["chunk_size"] = chunk_size;
-        jsonbegin["chunk_interval"] = 10;
-        jsonbegin["wav_name"] = wav_id;
-        jsonbegin["wav_format"] = wav_format;
-        jsonbegin["audio_fs"] = sampling_rate;
-        jsonbegin["itn"] = true;
-        jsonbegin["svs_itn"] = true;
-        if(use_itn == 0) {
-            jsonbegin["itn"] = false;
+      send(jsonbegin.dump());
+      offset = 0;
+      clearTimer();
+      tmSend = setInterval(20, [this](hv::TimerID tid) {
+        if (!send_frame()) {
+          sendEof();
         }
-        if(svs_itn == 0){
-            jsonbegin["svs_itn"] = false;
+      });
+    }
+    int offset = 0;
+    bool send_frame() {
+      int ec;
+      float* buff;
+      int len;
+      int flag = 0;
+      // fetch wav data use asr engine api
+      if (wav_format == "pcm") {
+        if (audio.Fetch(buff, len, flag) > 0) {
+          short* iArray = new short[len];
+          for (size_t i = 0; i < len; ++i) {
+            iArray[i] = (short)(buff[i] * 32768);
+          }
+
+          // send data to server
+          int offset = 0;
+          int block_size = 102400;
+          while (offset < len) {
+            int send_block = 0;
+            if (offset + block_size <= len) {
+              send_block = block_size;
+            }
+            else {
+              send_block = len - offset;
+            }
+            ec = send((const char*)(iArray + offset), send_block * sizeof(short));
+            offset += send_block;
+          }
+
+          LOG(INFO) << "Thread: " << this_thread::get_id() << ", sended data len=" << len * sizeof(short);
+          // The most likely error that we will get is that the connection is
+          // not in the right state. Usually this means we tried to send a
+          // message to a connection that was closed or in the process of
+          // closing. While many errors here can be easily recovered from,
+          // in this simple example, we'll stop the data loop.
+          if (ec < 0) {
+            printf("Send Error: " + ec);
+          }
+          delete[] iArray;
+          // WaitABit();
+          return true;
         }
-        jsonbegin["is_speaking"] = true;
-        if (send_hotword) {
-            if (!hws_map.empty()) {
-                LOG(INFO) << "hotwords: ";
-                for (const auto& pair : hws_map) {
-                    LOG(INFO) << pair.first << " : " << pair.second;
-                }
-                nlohmann::json json_map(hws_map);
-                std::string json_map_str = json_map.dump();
-                jsonbegin["hotwords"] = json_map_str;
-            }
-        }
+      }
+      else {
+        int block_size = 204800;
+        len = audio.GetSpeechLen();
+        char* others_buff = audio.GetSpeechChar();
 
-        ec = send(jsonbegin.dump());
-
-        // fetch wav data use asr engine api
-        if (wav_format == "pcm") {
-            while (audio.Fetch(buff, len, flag) > 0) {
-                short* iArray = new short[len];
-                for (size_t i = 0; i < len; ++i) {
-                    iArray[i] = (short)(buff[i]*32768);
-                }
-
-                // send data to server
-                int offset = 0;
-                int block_size = 102400;
-                while(offset < len){
-                    int send_block = 0;
-                    if (offset + block_size <= len){
-                        send_block = block_size;
-                    }else{
-                        send_block = len - offset;
-                    }
-                    ec = send((const char*)(iArray+offset), send_block * sizeof(short));
-                    offset += send_block;
-                }
-
-                LOG(INFO)<< "Thread: " << this_thread::get_id() << ", sended data len=" << len * sizeof(short);
-                // The most likely error that we will get is that the connection is
-                // not in the right state. Usually this means we tried to send a
-                // message to a connection that was closed or in the process of
-                // closing. While many errors here can be easily recovered from,
-                // in this simple example, we'll stop the data loop.
-                if (ec < 0) {
-                    printf("Send Error: " + ec);
-                    break;
-                }
-                delete[] iArray;
-                // WaitABit();
-            }
-        }else{
-            int offset = 0;
-            int block_size = 204800;
-            len = audio.GetSpeechLen();
-            char* others_buff = audio.GetSpeechChar();
-
-            while(offset < len){
-                int send_block = 0;
-                if (offset + block_size <= len){
-                    send_block = block_size;
-                }else{
-                    send_block = len - offset;
-                }
-                ec = send((const char*)(others_buff+offset), send_block);
-                offset += send_block;
-            }
-
-            LOG(INFO)<< "Thread: " << this_thread::get_id() << ", sended data len=" << len;
-            // The most likely error that we will get is that the connection is
-            // not in the right state. Usually this means we tried to send a
-            // message to a connection that was closed or in the process of
-            // closing. While many errors here can be easily recovered from,
-            // in this simple example, we'll stop the data loop.
+        if (offset < len) {
+          int send_block = 0;
+          if (offset + block_size <= len) {
+            send_block = block_size;
+          }
+          else {
+            send_block = len - offset;
+          }
+          ec = send((const char*)(others_buff + offset), send_block);
+          offset += send_block;
+          return true;
         }
 
+        LOG(INFO) << "Thread: " << this_thread::get_id() << ", sended data len=" << len;
+        // The most likely error that we will get is that the connection is
+        // not in the right state. Usually this means we tried to send a
+        // message to a connection that was closed or in the process of
+        // closing. While many errors here can be easily recovered from,
+        // in this simple example, we'll stop the data loop.
+      }
+      return false;
+    }
+
+    void sendEof(){
         nlohmann::json jsonresult;
         jsonresult["is_speaking"] = false;
         send(jsonresult.dump());
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
   private:
