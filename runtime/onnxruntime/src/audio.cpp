@@ -13,10 +13,8 @@
 #pragma warning(disable:4996)
 #endif
 
-#if defined(__APPLE__)
 #include <string.h>
-#else
-
+#if defined(ENABLE_FFMPEG)
 extern "C" {
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
@@ -25,10 +23,7 @@ extern "C" {
 #include <libavutil/samplefmt.h>
 #include <libswresample/swresample.h>
 }
-
 #endif
-
-
 
 using namespace std;
 
@@ -284,7 +279,7 @@ void Audio::WavResample(int32_t sampling_rate, const float *waveform,
 }
 
 bool Audio::FfmpegLoad(const char *filename, bool copy2char){
-#if defined(__APPLE__)
+#ifndef ENABLE_FFMPEG
     return false;
 #else
     // from file
@@ -446,7 +441,7 @@ bool Audio::FfmpegLoad(const char *filename, bool copy2char){
 }
 
 bool Audio::FfmpegLoad(const char* buf, int n_file_len){
-#if defined(__APPLE__)
+#ifndef ENABLE_FFMPEG
     return false;
 #else
     // from buf
