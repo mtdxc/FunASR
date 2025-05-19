@@ -50,9 +50,9 @@ int main(int argc, char *argv[])
 
     struct timeval start, end;
     gettimeofday(&start, nullptr);
+    
     int thread_num = 1;
     FUNASR_HANDLE punc_hanlde=CTTransformerInit(model_path, thread_num);
-
     if (!punc_hanlde)
     {
         LOG(ERROR) << "FunASR init failed";

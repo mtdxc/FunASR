@@ -6,7 +6,7 @@
 #include <deque>
 #include "tensor.h"
 
-using namespace std;
+using std::string;
 
 namespace funasr {
 typedef unsigned short          U16CHAR_T;
@@ -31,7 +31,6 @@ extern void FindMax(float *din, int len, float &max_val, int &max_idx);
 extern void Glu(Tensor<float> *din, Tensor<float> *dout);
 
 string PathAppend(const string &p1, const string &p2);
-bool is_target_file(const std::string& filename, const std::string target);
 
 void KeepChineseCharacterAndSplit(const std::string &input_str,
                                   std::vector<std::string> &chinese_characters);
@@ -68,7 +67,8 @@ void TimestampOnnx( std::vector<float>& us_alphas,
                     float begin_time = 0.0, 
                     float total_offset = -1.5);
 bool IsTargetFile(const std::string& filename, const std::string target);
-void ExtractHws(string hws_file, unordered_map<string, int> &hws_map);
-void ExtractHws(string hws_file, unordered_map<string, int> &hws_map, string& nn_hotwords_);
+void ExtractHws(string hws_file, std::unordered_map<string, int> &hws_map);
+void ExtractHws(string hws_file, std::unordered_map<string, int> &hws_map, string& nn_hotwords_);
+int ReadWavList(std::string file, std::vector<string>& wav_list, std::vector<string>& wav_ids);
 } // namespace funasr
 #endif

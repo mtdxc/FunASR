@@ -180,15 +180,6 @@ void Glu(Tensor<float> *din, Tensor<float> *dout)
     }
 }
 
-bool is_target_file(const std::string& filename, const std::string target) {
-    std::size_t pos = filename.find_last_of(".");
-    if (pos == std::string::npos) {
-        return false;
-    }
-    std::string extension = filename.substr(pos + 1);
-    return (extension == target);
-}
-
 void KeepChineseCharacterAndSplit(const std::string &input_str,
                                   std::vector<std::string> &chinese_characters) {
   chinese_characters.resize(0);
@@ -998,7 +989,7 @@ void SplitStringToVector(const std::string &full, const char *delim,
   }
 }
 
-void ExtractHws(string hws_file, unordered_map<string, int> &hws_map)
+void ExtractHws(string hws_file, std::unordered_map<string, int> &hws_map)
 {
     if(hws_file.empty()){
         return;
@@ -1023,8 +1014,7 @@ void ExtractHws(string hws_file, unordered_map<string, int> &hws_map)
         if (text.size() > 1) {
             try{
                 score = std::stof(text[text.size() - 1]);
-            }catch (std::exception const &e)
-            {
+            } catch (std::exception const &e) {
                 LOG(ERROR)<<e.what();
                 continue;
             }
@@ -1045,7 +1035,7 @@ void ExtractHws(string hws_file, unordered_map<string, int> &hws_map)
     ifs_hws.close();
 }
 
-void ExtractHws(string hws_file, unordered_map<string, int> &hws_map, string& nn_hotwords_)
+void ExtractHws(string hws_file, std::unordered_map<string, int> &hws_map, string& nn_hotwords_)
 {
     if(hws_file.empty()){
         return;
@@ -1068,10 +1058,9 @@ void ExtractHws(string hws_file, unordered_map<string, int> &hws_map, string& nn
         SplitStringToVector(line, " ", true, &text);
         
         if (text.size() > 1) {
-            try{
+            try {
                 score = std::stof(text[text.size() - 1]);
-            }catch (std::exception const &e)
-            {
+            } catch (std::exception const &e) {
                 LOG(ERROR)<<e.what();
                 continue;
             }
@@ -1091,6 +1080,36 @@ void ExtractHws(string hws_file, unordered_map<string, int> &hws_map, string& nn
         hws_map.emplace(hotword, score);
     }
     ifs_hws.close();
+}
+
+int ReadWavList(std::string wav_path, std::vector<string>& wav_list, std::vector<string>& wav_ids)
+{
+    int ret = 0;
+    if (funasr::IsTargetFile(wav_path, "scp")) {
+        ifstream in(wav_path);
+        if (!in.is_open()) {
+            printf("Failed to open scp file");
+            return 0;
+        }
+        string line;
+        while (getline(in, line))
+        {
+            istringstream iss(line);
+            string column1, column2;
+            iss >> column1 >> column2;
+            wav_list.emplace_back(column2);
+            wav_ids.emplace_back(column1);
+            ret++;
+        }
+        in.close();
+    }
+    else if (IsTargetFile(wav_path, "wav") || IsTargetFile(wav_path, "pcm"))
+    {
+        wav_list.emplace_back(wav_path);
+        wav_ids.emplace_back("wav_default_id");
+        ret++;
+    }
+    return ret;
 }
 
 void SmoothTimestamps(std::string &str_punc, std::string &str_itn, std::string &str_timetamp){

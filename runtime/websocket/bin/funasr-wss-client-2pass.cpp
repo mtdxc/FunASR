@@ -452,26 +452,7 @@ int main(int argc, char* argv[]) {
     // read wav_path
     std::vector<string> wav_list;
     std::vector<string> wav_ids;
-    string default_id = "wav_default_id";
-    if (funasr::IsTargetFile(wav_path, "scp")) {
-      ifstream in(wav_path);
-      if (!in.is_open()) {
-        printf("Failed to open scp file");
-        return 0;
-      }
-      string line;
-      while (getline(in, line)) {
-        istringstream iss(line);
-        string column1, column2;
-        iss >> column1 >> column2;
-        wav_list.emplace_back(column2);
-        wav_ids.emplace_back(column1);
-      }
-      in.close();
-    } else {
-      wav_list.emplace_back(wav_path);
-      wav_ids.emplace_back(default_id);
-    }
+    funasr::ReadWavList(wav_path, wav_list, wav_ids);
 
     for (size_t wav_i = 0; wav_i < wav_list.size(); wav_i = wav_i + threads_num) {
       for (size_t i = 0; i < threads_num; i++) {
