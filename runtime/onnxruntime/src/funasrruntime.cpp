@@ -89,11 +89,11 @@
 			return nullptr;
 
 		funasr::Audio audio(recog_obj->GetAsrSampleRate(),1);
-		if(funasr::is_target_file(sz_filename, "wav")){
+		if(funasr::IsTargetFile(sz_filename, "wav")){
 			int32_t sampling_rate_ = -1;
 			if(!audio.LoadWav(sz_filename, &sampling_rate_))
 				return nullptr;
-		}else if(funasr::is_target_file(sz_filename, "pcm")){
+		}else if(funasr::IsTargetFile(sz_filename, "pcm")){
 			if (!audio.LoadPcmwav(sz_filename, &sampling_rate))
 				return nullptr;
 		}else{
@@ -153,11 +153,11 @@
 			return nullptr;
 
 		funasr::Audio audio(vad_obj->GetVadSampleRate(),1);
-		if(funasr::is_target_file(sz_filename, "wav")){
+		if(funasr::IsTargetFile(sz_filename, "wav")){
 			int32_t sampling_rate_ = -1;
 			if(!audio.LoadWav(sz_filename, &sampling_rate_))
 				return nullptr;
-		}else if(funasr::is_target_file(sz_filename, "pcm")){
+		}else if(funasr::IsTargetFile(sz_filename, "pcm")){
 			if (!audio.LoadPcmwav(sz_filename, &sampling_rate))
 				return nullptr;
 		}else{
@@ -339,11 +339,11 @@
 		
 		funasr::Audio audio((offline_stream->asr_handle)->GetAsrSampleRate(),1);
 		try{
-			if(funasr::is_target_file(sz_filename, "wav")){
+			if(funasr::IsTargetFile(sz_filename, "wav")){
 				int32_t sampling_rate_ = -1;
 				if(!audio.LoadWav(sz_filename, &sampling_rate_))
 					return nullptr;
-			}else if(funasr::is_target_file(sz_filename, "pcm")){
+			}else if(funasr::IsTargetFile(sz_filename, "pcm")){
 				if (!audio.LoadPcmwav(sz_filename, &sampling_rate))
 					return nullptr;
 			}else{

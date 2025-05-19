@@ -104,15 +104,6 @@ void runReg(FUNASR_HANDLE asr_handle, vector<string> wav_list, vector<string> wa
     FunASRWfstDecoderUninit(decoder_handle);
 }
 
-bool is_target_file(const std::string& filename, const std::string target) {
-    std::size_t pos = filename.find_last_of(".");
-    if (pos == std::string::npos) {
-        return false;
-    }
-    std::string extension = filename.substr(pos + 1);
-    return (extension == target);
-}
-
 void GetValue(TCLAP::ValueArg<std::string>& value_arg, string key, std::map<std::string, std::string>& model_path)
 {
     model_path.insert({key, value_arg.getValue()});
@@ -185,7 +176,6 @@ int main(int argc, char *argv[])
     bool use_gpu_ = use_gpu.getValue();
     int batch_size_ = batch_size.getValue();
     FUNASR_HANDLE asr_handle=FunOfflineInit(model_path, 1, use_gpu_, batch_size_);
-
     if (!asr_handle)
     {
         LOG(ERROR) << "FunASR init failed";
@@ -200,29 +190,8 @@ int main(int argc, char *argv[])
     // read wav_path
     vector<string> wav_list;
     vector<string> wav_ids;
-    string default_id = "wav_default_id";
     string wav_path_ = model_path.at(WAV_PATH);
-    if(is_target_file(wav_path_, "wav") || is_target_file(wav_path_, "pcm")){
-        wav_list.emplace_back(wav_path_);
-        wav_ids.emplace_back(default_id);
-    }
-    else if(is_target_file(wav_path_, "scp")){
-        ifstream in(wav_path_);
-        if (!in.is_open()) {
-            LOG(ERROR) << "Failed to open file: " << model_path.at(WAV_SCP) ;
-            return 0;
-        }
-        string line;
-        while(getline(in, line))
-        {
-            istringstream iss(line);
-            string column1, column2;
-            iss >> column1 >> column2;
-            wav_list.emplace_back(column2);
-            wav_ids.emplace_back(column1);
-        }
-        in.close();
-    }else{
+    if (!funasr::ReadWavList(wav_path_, wav_list, wav_ids)) {
         LOG(ERROR)<<"Please check the wav extension!";
         exit(-1);
     }

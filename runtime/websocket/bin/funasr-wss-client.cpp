@@ -252,16 +252,12 @@ int main(int argc, char* argv[]) {
         "the input could be: wav_path, e.g.: asr_example.wav; pcm_path, e.g.: asr_example.pcm; wav.scp, kaldi style wav list (wav_id \t wav_path)", 
         true, "", "string");
     TCLAP::ValueArg<std::int32_t> audio_fs_("", "audio-fs", "the sample rate of audio", false, 16000, "int32_t");
-    TCLAP::ValueArg<int> thread_num_("", "thread-num", "thread-num",
+    TCLAP::ValueArg<int> thread_num_("", "thread-num", "thread-num", false, 1, "int");
+    TCLAP::ValueArg<int> is_ssl_("", "is-ssl", "is-ssl is 1 means use wss connection, or use ws connection", 
         false, 1, "int");
-    TCLAP::ValueArg<int> is_ssl_(
-        "", "is-ssl", "is-ssl is 1 means use wss connection, or use ws connection", 
-        false, 1, "int");
-    TCLAP::ValueArg<int> use_itn_(
-        "", "use-itn",
+    TCLAP::ValueArg<int> use_itn_("", "use-itn",
         "use-itn is 1 means use itn, 0 means not use itn", false, 1, "int");
-    TCLAP::ValueArg<int> svs_itn_(
-        "", "svs-itn",
+    TCLAP::ValueArg<int> svs_itn_("", "svs-itn",
         "svs-itn is 1 means use itn and punc, 0 means not use", false, 1, "int");
     TCLAP::ValueArg<std::string> hotword_("", HOTWORD,
         "the hotword file, one hotword perline, Format: Hotword Weight (could be: 阿里巴巴 20)", false, "", "string");
@@ -303,27 +299,7 @@ int main(int argc, char* argv[]) {
     // read wav_path
     std::vector<string> wav_list;
     std::vector<string> wav_ids;
-    string default_id = "wav_default_id";
-    if(funasr::IsTargetFile(wav_path, "scp")){
-        ifstream in(wav_path);
-        if (!in.is_open()) {
-            printf("Failed to open scp file");
-            return 0;
-        }
-        string line;
-        while(getline(in, line))
-        {
-            istringstream iss(line);
-            string column1, column2;
-            iss >> column1 >> column2;
-            wav_list.emplace_back(column2);
-            wav_ids.emplace_back(column1);
-        }
-        in.close();
-    }else{
-        wav_list.emplace_back(wav_path);
-        wav_ids.emplace_back(default_id);
-    }
+    funasr::ReadWavList(wav_path, wav_list, wav_ids);
    
     int audio_fs = audio_fs_.getValue();
     auto loop_thread = std::make_shared<EventLoopThread>();

@@ -21,15 +21,6 @@
 #include "util.h"
 #include "audio.h"
 using namespace std;
-// 判断扩展名是否一致
-bool is_target_file(const std::string& filename, const std::string target) {
-    std::size_t pos = filename.find_last_of(".");
-    if (pos == std::string::npos) {
-        return false;
-    }
-    std::string extension = filename.substr(pos + 1);
-    return (extension == target);
-}
 
 void GetValue(TCLAP::ValueArg<std::string>& value_arg, string key, std::map<std::string, std::string>& model_path)
 {
@@ -132,29 +123,8 @@ int main(int argc, char** argv)
     // read wav_path
     vector<string> wav_list;
     vector<string> wav_ids;
-    string default_id = "wav_default_id";
     string wav_path_ = model_path.at(WAV_PATH);
-
-    if(is_target_file(wav_path_, "scp")){
-        ifstream in(wav_path_);
-        if (!in.is_open()) {
-            LOG(ERROR) << "Failed to open file: " << model_path.at(WAV_SCP) ;
-            return 0;
-        }
-        string line;
-        while(getline(in, line))
-        {
-            istringstream iss(line);
-            string column1, column2;
-            iss >> column1 >> column2;
-            wav_list.emplace_back(column2);
-            wav_ids.emplace_back(column1);
-        }
-        in.close();
-    }else{
-        wav_list.emplace_back(wav_path_);
-        wav_ids.emplace_back(default_id);
-    }
+    funasr::ReadWavList(wav_path_, wav_list, wav_ids);
     
     float snippet_time = 0.0f;
     long taking_micros = 0;
@@ -170,12 +140,12 @@ int main(int argc, char** argv)
         // For debug:begin
         // int32_t sampling_rate_ = audio_fs.getValue();
         // funasr::Audio audio(1);
-		// if(is_target_file(wav_file.c_str(), "wav")){
+		// if(funasr::IsTargetFile(wav_file.c_str(), "wav")){
 		// 	if(!audio.LoadWav2Char(wav_file.c_str(), &sampling_rate_)){
 		// 		LOG(ERROR)<<"Failed to load "<< wav_file;
         //         exit(-1);
         //     }
-		// }else if(is_target_file(wav_file.c_str(), "pcm")){
+		// }else if(funasr::IsTargetFile(wav_file.c_str(), "pcm")){
 		// 	if (!audio.LoadPcmwav2Char(wav_file.c_str(), &sampling_rate_)){
 		// 		LOG(ERROR)<<"Failed to load "<< wav_file;
         //         exit(-1);
