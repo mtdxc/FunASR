@@ -38,38 +38,17 @@ endif()
 if(ENABLE_WEBSOCKET)
   # cmake_policy(SET CMP0135 NEW)
   include(FetchContent)
-
-  if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/websocket/websocketpp )
-    FetchContent_Declare(websocketpp
-    GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
-      GIT_TAG 0.8.2
-      SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/websocket
-      )
-    
-    FetchContent_MakeAvailable(websocketpp)
-  endif()
-  include_directories(${PROJECT_SOURCE_DIR}/third_party/websocket)
-   
-  if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/asio/asio )
-    FetchContent_Declare(asio
-      URL   https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-24-0.tar.gz
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/asio
+  if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/libhv)
+    FetchContent_Declare(libhv
+      URL   https://github.com/ithewei/libhv/archive/refs/tags/v1.3.3.tar.gz
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/libhv
     )
     
-    FetchContent_MakeAvailable(asio)
+    FetchContent_MakeAvailable(libhv)
   endif()
-  include_directories(${PROJECT_SOURCE_DIR}/third_party/asio/asio/include)
- 
-  if(NOT EXISTS ${PROJECT_SOURCE_DIR}/third_party/json/ChangeLog.md )
-    FetchContent_Declare(json
-      URL   https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/json
-    )
-    
-    FetchContent_MakeAvailable(json)
-  endif()
-  include_directories(${PROJECT_SOURCE_DIR}/third_party/json/include)
-
+  include_directories(${PROJECT_SOURCE_DIR}/third_party/libhv/include)
+  set(WITH_OPENSSL ON CACHE INTERNAL "")
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libhv)
 endif()
 
 if(ENABLE_PORTAUDIO)
@@ -144,9 +123,6 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/yaml-cpp yaml-
 add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi-native-fbank/kaldi-native-fbank/csrc csrc)
 add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/src src)
 add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi kaldi)
-
-# install openssl first apt-get install libssl-dev
-find_package(OpenSSL REQUIRED)
 
 message("CXX_FLAGS "${CMAKE_CXX_FLAGS})
 # 获取项目中所有包含文件夹的路径

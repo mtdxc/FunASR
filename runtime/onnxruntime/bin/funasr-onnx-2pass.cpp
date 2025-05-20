@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 
     // hotword file
     unordered_map<string, int> hws_map;
-    std::string nn_hotwords_ = "";
+    std::string nn_hotwords_ = ""; // 以空格隔开的所有热词列表
     std::string hotword_path = hotword.getValue();
     LOG(INFO) << "hotword path: " << hotword_path;
     funasr::ExtractHws(hotword_path, hws_map, nn_hotwords_);
@@ -147,7 +147,7 @@ int main(int argc, char** argv)
     string default_id = "wav_default_id";
     string wav_path_ = model_path.at(WAV_PATH);
 
-    if(is_target_file(wav_path_, "scp")){
+    if (is_target_file(wav_path_, "scp")) {
         ifstream in(wav_path_);
         if (!in.is_open()) {
             LOG(ERROR) << "Failed to open file: " << model_path.at(WAV_SCP) ;

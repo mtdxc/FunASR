@@ -8,7 +8,6 @@
 #include "cppjieba/DictTrie.hpp"
 #include "cppjieba/HMMModel.hpp"
 #include "cppjieba/Jieba.hpp"
-#include "nlohmann/json.hpp"
 
 namespace funasr {
 class CTokenizer {

@@ -26,130 +26,61 @@
 
 #include <fstream>
 #include <functional>
-#include <websocketpp/common/thread.hpp>
-#include <websocketpp/config/asio.hpp>
-#include <websocketpp/server.hpp>
-
-#include "asio.hpp"
+#include <hv/WebSocketServer.h>
+#include <hv/EventLoopThreadPool.h>
 #include "com-define.h"
 #include "funasrruntime.h"
-#include "nlohmann/json.hpp"
+//#include "nlohmann/json.hpp"
 #include "tclap/CmdLine.h"
-typedef websocketpp::server<websocketpp::config::asio> server;
-typedef websocketpp::server<websocketpp::config::asio_tls> wss_server;
-typedef server::message_ptr message_ptr;
-using websocketpp::lib::bind;
-using websocketpp::lib::placeholders::_1;
-using websocketpp::lib::placeholders::_2;
+#include <mutex>
 
-typedef websocketpp::lib::lock_guard<websocketpp::lib::mutex> scoped_lock;
-typedef websocketpp::lib::unique_lock<websocketpp::lib::mutex> unique_lock;
-typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context>
-    context_ptr;
+using scoped_lock = std::lock_guard<std::recursive_mutex>;
+using unique_lock = std::unique_lock<std::recursive_mutex>;
 
-typedef struct {
-    std::string msg="";
-    std::string stamp="";
-    std::string stamp_sents;
-    std::string tpass_msg="";
-    float snippet_time=0;
-} FUNASR_RECOG_RESULT;
+struct FUNASR_MESSAGE {
+  using Ptr = std::shared_ptr<FUNASR_MESSAGE>;
+  FUNASR_MESSAGE();
+  ~FUNASR_MESSAGE();
 
-typedef struct {
+  bool is_eof=false;
+  void setEof() {
+    unique_lock guard_decoder(thread_lock);
+    is_eof=true;
+  }
+  int access_num=0;
+  void addAccessNum(int delta = 1) {
+    unique_lock guard_decoder(thread_lock);
+    access_num += delta;
+  }
+  void config(nlohmann::json& json, FUNASR_HANDLE asr_handle);
+  bool decode(const std::vector<char>& buffer, nlohmann::json& resp, FUNASR_HANDLE asr_handle);
   nlohmann::json msg;
   std::shared_ptr<std::vector<char>> samples;
-  std::shared_ptr<std::vector<std::vector<float>>> hotwords_embedding=nullptr;
-  std::shared_ptr<websocketpp::lib::mutex> thread_lock; // lock for each connection
+  std::vector<std::vector<float>> hotwords_embedding;
+  std::recursive_mutex thread_lock; // lock for each connection
   FUNASR_DEC_HANDLE decoder_handle=nullptr;
-} FUNASR_MESSAGE;
+};
 
-// See https://wiki.mozilla.org/Security/Server_Side_TLS for more details about
-// the TLS modes. The code below demonstrates how to implement both the modern
-enum tls_mode { MOZILLA_INTERMEDIATE = 1, MOZILLA_MODERN = 2 };
-class WebSocketServer {
+
+class WebSocketServer : public WebSocketService {
  public:
-  WebSocketServer(asio::io_context& io_decoder, bool is_ssl, server* server,
-                  wss_server* wss_server, std::string& s_certfile,
-                  std::string& s_keyfile)
-      : io_decoder_(io_decoder),
-        is_ssl(is_ssl),
-        server_(server),
-        wss_server_(wss_server){
-    if (is_ssl) {
-      std::cout << "certfile path is " << s_certfile << std::endl;
-      wss_server->set_tls_init_handler(
-          bind<context_ptr>(&WebSocketServer::on_tls_init, this,
-                            MOZILLA_INTERMEDIATE, ::_1, s_certfile, s_keyfile));
-      wss_server_->set_message_handler(
-          [this](websocketpp::connection_hdl hdl, message_ptr msg) {
-            on_message(hdl, msg);
-          });
-      // set open handle
-      wss_server_->set_open_handler(
-          [this](websocketpp::connection_hdl hdl) { on_open(hdl); });
-      // set close handle
-      wss_server_->set_close_handler(
-          [this](websocketpp::connection_hdl hdl) { on_close(hdl); });
-      // begin accept
-      wss_server_->start_accept();
-      // not print log
-      wss_server_->clear_access_channels(websocketpp::log::alevel::all);
-
-    } else {
+  WebSocketServer(hv::EventLoopThreadPool* pool, FUNASR_HANDLE asr) : io_decoder(pool), asr_handle(asr) {
       // set message handle
-      server_->set_message_handler(
-          [this](websocketpp::connection_hdl hdl, message_ptr msg) {
-            on_message(hdl, msg);
-          });
-      // set open handle
-      server_->set_open_handler(
-          [this](websocketpp::connection_hdl hdl) { on_open(hdl); });
-      // set close handle
-      server_->set_close_handler(
-          [this](websocketpp::connection_hdl hdl) { on_close(hdl); });
-      // begin accept
-      server_->start_accept();
-      // not print log
-      server_->clear_access_channels(websocketpp::log::alevel::all);
-    }
+      onopen = std::bind(&WebSocketServer::on_open, this, std::placeholders::_1, std::placeholders::_2);
+      onmessage = std::bind(&WebSocketServer::on_message, this, std::placeholders::_1, std::placeholders::_2);
+      onclose = std::bind(&WebSocketServer::on_close, this, std::placeholders::_1);
   }
-  void do_decoder(const std::vector<char>& buffer,
-                  websocketpp::connection_hdl& hdl, 
-                  nlohmann::json& msg,
-                  websocketpp::lib::mutex& thread_lock,
-                  std::vector<std::vector<float>> &hotwords_embedding,
-                  std::string wav_name, 
-                  bool itn,
-                  int audio_fs,
-                  std::string wav_format,
-                  FUNASR_DEC_HANDLE& decoder_handle,
-                  std::string svs_lang,
-                  bool sys_itn);
 
-  void initAsr(std::map<std::string, std::string>& model_path, int thread_num, bool use_gpu=false, int batch_size=1);
-  void on_message(websocketpp::connection_hdl hdl, message_ptr msg);
-  void on_open(websocketpp::connection_hdl hdl);
-  void on_close(websocketpp::connection_hdl hdl);
-  context_ptr on_tls_init(tls_mode mode, websocketpp::connection_hdl hdl,
-                          std::string& s_certfile, std::string& s_keyfile);
-
+  void on_message(const WebSocketChannelPtr& channel, const std::string& msg);
+  void on_open(const WebSocketChannelPtr& channel, const HttpRequestPtr& req);
+  void on_close(const WebSocketChannelPtr& channel);
  private:
-  void check_and_clean_connection();
-  asio::io_context& io_decoder_;  // threads for asr decoder
   // std::ofstream fout;
   FUNASR_HANDLE asr_handle;  // asr engine handle
   bool isonline = false;  // online or offline engine, now only support offline
-  bool is_ssl = true;
-  server* server_;          // websocket server
-  wss_server* wss_server_;  // websocket server
-
+  hv::EventLoopThreadPool* io_decoder;
   // use map to keep the received samples data from one connection in offline
   // engine. if for online engline, a data struct is needed(TODO)
-
-  std::map<websocketpp::connection_hdl, std::shared_ptr<FUNASR_MESSAGE>,
-           std::owner_less<websocketpp::connection_hdl>>
-      data_map;
-  websocketpp::lib::mutex m_lock;  // mutex for sample_map
 };
 
 // std::unordered_map<std::string, int>& hws_map, int fst_inc_wts, std::string& nn_hotwords
