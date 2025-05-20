@@ -6,9 +6,10 @@
 #include "precomp.h"
 
 namespace funasr {
-CTTransformerOnline::CTTransformerOnline()
-:env_(ORT_LOGGING_LEVEL_ERROR, ""),session_options{}
-{
+CTTransformerOnline::CTTransformerOnline():env_(ORT_LOGGING_LEVEL_ERROR, ""),session_options{} {
+}
+
+CTTransformerOnline::~CTTransformerOnline() {
 }
 
 void CTTransformerOnline::InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num){
@@ -30,10 +31,6 @@ void CTTransformerOnline::InitPunc(const std::string &punc_model, const std::str
 
 	m_tokenizer.OpenYaml(punc_config.c_str(), token_file.c_str());
 	m_tokenizer.JiebaInit(punc_config);
-}
-
-CTTransformerOnline::~CTTransformerOnline()
-{
 }
 
 string CTTransformerOnline::AddPunc(const char* sz_input, vector<string> &arr_cache, std::string language)
@@ -152,57 +149,60 @@ string CTTransformerOnline::AddPunc(const char* sz_input, vector<string> &arr_ca
 
 vector<int> CTTransformerOnline::Infer(vector<int32_t> input_data, int nCacheSize)
 {
-    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     vector<int> punction;
-    std::array<int64_t, 2> input_shape_{ 1, (int64_t)input_data.size()};
-    Ort::Value onnx_input = Ort::Value::CreateTensor(
-        m_memoryInfo,
-        input_data.data(),
-        input_data.size() * sizeof(int32_t),
-        input_shape_.data(),
-        input_shape_.size(), ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
 
-    std::array<int32_t,1> text_lengths{ (int32_t)input_data.size() };
-    std::array<int64_t,1> text_lengths_dim{ 1 };
-    Ort::Value onnx_text_lengths = Ort::Value::CreateTensor<int32_t>(
-        m_memoryInfo,
-        text_lengths.data(),
-        text_lengths.size(),
-        text_lengths_dim.data(),
-        text_lengths_dim.size()); //, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
-
-    //vad_mask
-    // vector<float> arVadMask,arSubMask;
-    vector<float> arVadMask;
-    int nTextLength = input_data.size();
-
-    VadMask(nTextLength, nCacheSize, arVadMask);
-    // Triangle(nTextLength, arSubMask);
-    std::array<int64_t, 4> VadMask_Dim{ 1,1, nTextLength ,nTextLength };
-    Ort::Value onnx_vad_mask = Ort::Value::CreateTensor<float>(
-        m_memoryInfo,
-        arVadMask.data(),
-        arVadMask.size(), // * sizeof(float),
-        VadMask_Dim.data(),
-        VadMask_Dim.size()); // , ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT);
-    //sub_masks
-    
-    std::array<int64_t, 4> SubMask_Dim{ 1,1, nTextLength ,nTextLength };
-    Ort::Value onnx_sub_mask = Ort::Value::CreateTensor<float>(
-        m_memoryInfo,
-        arVadMask.data(),
-        arVadMask.size(),
-        SubMask_Dim.data(),
-        SubMask_Dim.size()); // , ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT);
-
-    std::vector<Ort::Value> input_onnx;
-    input_onnx.emplace_back(std::move(onnx_input));
-    input_onnx.emplace_back(std::move(onnx_text_lengths));
-    input_onnx.emplace_back(std::move(onnx_vad_mask));
-    input_onnx.emplace_back(std::move(onnx_sub_mask));
-        
     try {
-        auto outputTensor = m_session->Run(Ort::RunOptions{nullptr}, m_szInputNames.data(), input_onnx.data(), m_szInputNames.size(), m_szOutputNames.data(), m_szOutputNames.size());
+        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        std::array<int64_t, 2> input_shape_{ 1, (int64_t)input_data.size()};
+        Ort::Value onnx_input = Ort::Value::CreateTensor(
+            m_memoryInfo,
+            input_data.data(),
+            input_data.size() * sizeof(int32_t),
+            input_shape_.data(),
+            input_shape_.size(), ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
+
+        std::array<int32_t,1> text_lengths{ (int32_t)input_data.size() };
+        std::array<int64_t,1> text_lengths_dim{ 1 };
+        Ort::Value onnx_text_lengths = Ort::Value::CreateTensor<int32_t>(
+            m_memoryInfo,
+            text_lengths.data(),
+            text_lengths.size(),
+            text_lengths_dim.data(),
+            text_lengths_dim.size()); //, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
+
+        //vad_mask
+        // vector<float> arVadMask,arSubMask;
+        vector<float> arVadMask;
+        int nTextLength = input_data.size();
+
+        VadMask(nTextLength, nCacheSize, arVadMask);
+        // Triangle(nTextLength, arSubMask);
+        std::array<int64_t, 4> VadMask_Dim{ 1,1, nTextLength ,nTextLength };
+        Ort::Value onnx_vad_mask = Ort::Value::CreateTensor<float>(
+            m_memoryInfo,
+            arVadMask.data(),
+            arVadMask.size(), // * sizeof(float),
+            VadMask_Dim.data(),
+            VadMask_Dim.size()); // , ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT);
+        //sub_masks
+        
+        std::array<int64_t, 4> SubMask_Dim{ 1,1, nTextLength ,nTextLength };
+        Ort::Value onnx_sub_mask = Ort::Value::CreateTensor<float>(
+            m_memoryInfo,
+            arVadMask.data(),
+            arVadMask.size(),
+            SubMask_Dim.data(),
+            SubMask_Dim.size()); // , ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT);
+
+        std::vector<Ort::Value> input_onnx;
+        input_onnx.emplace_back(std::move(onnx_input));
+        input_onnx.emplace_back(std::move(onnx_text_lengths));
+        input_onnx.emplace_back(std::move(onnx_vad_mask));
+        input_onnx.emplace_back(std::move(onnx_sub_mask));
+        
+        auto outputTensor = m_session->Run(Ort::RunOptions{nullptr}, 
+            m_szInputNames.data(), input_onnx.data(), m_szInputNames.size(), 
+            m_szOutputNames.data(), m_szOutputNames.size());
         std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
 
         int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), 1, std::multiplies<int64_t>());

@@ -109,8 +109,7 @@ int main(int argc, char *argv[]) {
     TCLAP::ValueArg<std::string> punc_quant(
         "", PUNC_QUANT,
         "true (Default), load the model of model_quant.onnx in punc_dir. If "
-        "set "
-        "false, load the model of model.onnx in punc_dir",
+        "set false, load the model of model.onnx in punc_dir",
         false, "true", "string");
     TCLAP::ValueArg<std::string> itn_dir(
         "", ITN_DIR,
@@ -233,8 +232,7 @@ int main(int argc, char *argv[]) {
       std::string s_lm_path = model_path[LM_DIR];
 
       std::string python_cmd =
-          "python -m funasr.download.runtime_sdk_download_tool --type onnx "
-          "--quantize True ";
+          "python -m funasr.download.runtime_sdk_download_tool --type onnx --quantize True ";
 
       if (vad_dir.isSet() && !s_vad_path.empty()) {
         std::string python_cmd_vad;
@@ -285,15 +283,13 @@ int main(int argc, char *argv[]) {
 
         // modify model-revision by model name
         size_t found = s_asr_path.find(
-            "speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-"
-            "vocab8404");
+            "speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404");
         if (found != std::string::npos) {
           model_path["model-revision"] = "v1.2.4";
         }
 
         found = s_asr_path.find(
-            "speech_paraformer-large-contextual_asr_nat-zh-cn-16k-common-"
-            "vocab8404");
+            "speech_paraformer-large-contextual_asr_nat-zh-cn-16k-common-vocab8404");
         if (found != std::string::npos) {
           model_path["model-revision"] = "v1.0.5";
         }
@@ -356,8 +352,7 @@ int main(int argc, char *argv[]) {
           down_itn_path = s_itn_path;
         } else {
           // modelscope
-          LOG(INFO) << "Download model: " << s_itn_path
-                    << " from modelscope : ";
+          LOG(INFO) << "Download model: " << s_itn_path << " from modelscope : ";
           python_cmd_itn = python_cmd + " --model-name " + s_itn_path +
                            " --export-dir " + s_download_model_dir +
                            " --model_revision " + model_path["itn-revision"] +
@@ -436,8 +431,7 @@ int main(int argc, char *argv[]) {
           down_punc_path = s_punc_path;
         } else {
           // modelscope
-          LOG(INFO) << "Download model: " << s_punc_path
-                    << " from modelscope: ";
+          LOG(INFO) << "Download model: " << s_punc_path << " from modelscope: ";
           python_cmd_punc = python_cmd + " --model-name " + s_punc_path +
                             " --export-dir " + s_download_model_dir +
                             " --model_revision " + model_path["punc-revision"];
@@ -488,16 +482,15 @@ int main(int argc, char *argv[]) {
     LOG(INFO) << "hotword path: " << hotword_path;
     funasr::ExtractHws(hotword_path, hws_map_);
 
-    auto conn_guard = asio::make_work_guard(
-        io_decoder);  // make sure threads can wait in the queue
+    // make sure threads can wait in the queue
+    auto conn_guard = asio::make_work_guard(io_decoder);
 
     // create threads pool
     for (int32_t i = 0; i < s_decoder_thread_num; ++i) {
       decoder_threads.emplace_back([&io_decoder]() { io_decoder.run(); });
     }
 
-    // ModelDecoderSrv modelSrv(
-    //     io_decoder);  // websocket server for asr engine
+    // ModelDecoderSrv modelSrv(io_decoder);  // websocket server for asr engine
     // modelSrv.initAsr(model_path, s_model_thread_num);  // init asr model
     // FUNASR_HANDLE asr_handle= initAsr();
     LOG(INFO) << "decoder-thread-num: " << s_decoder_thread_num;

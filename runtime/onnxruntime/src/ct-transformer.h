@@ -16,9 +16,9 @@ class CTTransformer : public PuncModel {
 private:
 
 	CTokenizer m_tokenizer;
-	vector<string> m_strInputNames, m_strOutputNames;
-	vector<const char*> m_szInputNames;
-	vector<const char*> m_szOutputNames;
+	std::vector<std::string> m_strInputNames, m_strOutputNames;
+	std::vector<const char*> m_szInputNames;
+	std::vector<const char*> m_szOutputNames;
 
 	std::shared_ptr<Ort::Session> m_session;
     Ort::Env env_;
@@ -26,9 +26,10 @@ private:
 public:
 
 	CTTransformer();
-	void InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num);
 	~CTTransformer();
-	vector<int>  Infer(vector<int32_t> input_data);
-	string AddPunc(const char* sz_input, std::string language="zh-cn");
+
+	void InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num);
+	std::vector<int>  Infer(std::vector<int32_t> input_data);
+	std::string AddPunc(const char* sz_input, std::string language="zh-cn");
 };
 } // namespace funasr

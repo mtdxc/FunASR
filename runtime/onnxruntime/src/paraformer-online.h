@@ -22,13 +22,6 @@ namespace funasr {
         void GetPosEmb(std::vector<std::vector<float>> &wav_feats, int timesteps, int feat_dim);
         void CifSearch(std::vector<std::vector<float>> hidden, std::vector<float> alphas, bool is_final, std::vector<std::vector<float>> &list_frame);
 
-        static int ComputeFrameNum(int sample_length, int frame_sample_length, int frame_shift_sample_length) {
-            int frame_num = static_cast<int>((sample_length - frame_sample_length) / frame_shift_sample_length + 1);
-            if (frame_num >= 1 && sample_length >= frame_sample_length)
-                return frame_num;
-            else
-                return 0;
-        }
         void InitOnline(
             knf::FbankOptions &fbank_opts,
             std::shared_ptr<Ort::Session> &encoder_session,
@@ -113,6 +106,7 @@ namespace funasr {
     public:
         ParaformerOnline(Model* offline_handle, std::vector<int> chunk_size, std::string model_type=MODEL_PARA);
         ~ParaformerOnline();
+
         void Reset();
         void ResetCache();
         void InitCache();

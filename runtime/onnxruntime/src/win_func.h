@@ -1,12 +1,13 @@
 #ifndef WIN_FUNC_
 #define WIN_FUNC_
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
-#define  WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
 #include <winsock.h>
-#include<io.h>
+#include <io.h>
 
 #ifndef R_OK
 #define R_OK 4

@@ -17,6 +17,7 @@ class FsmnVadOnline : public VadModel {
 public:
     explicit FsmnVadOnline(FsmnVad* fsmnvad_handle);
     ~FsmnVadOnline();
+
     void Test();
     std::vector<std::vector<int>> Infer(std::vector<float> &waves, bool input_finished);
     void ExtractFeats(float sample_rate, vector<vector<float>> &vad_feats, vector<float> &waves, bool input_finished);
@@ -48,13 +49,6 @@ private:
                     int vad_max_len,
                     double vad_speech_noise_thres);
 
-    static int ComputeFrameNum(int sample_length, int frame_sample_length, int frame_shift_sample_length) {
-        int frame_num = static_cast<int>((sample_length - frame_sample_length) / frame_shift_sample_length + 1);
-        if (frame_num >= 1 && sample_length >= frame_sample_length)
-            return frame_num;
-        else
-            return 0;
-    }
     void ResetCache() {
         reserve_waveforms_.clear();
         input_cache_.clear();

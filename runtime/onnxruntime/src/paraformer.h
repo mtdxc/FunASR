@@ -31,8 +31,8 @@ namespace funasr {
         void LoadCmvn(const char *filename);
         void LfrCmvn(std::vector<std::vector<float>> &asr_feats);
 
-        std::shared_ptr<Ort::Session> hw_m_session = nullptr;
         Ort::Env hw_env_;
+        std::shared_ptr<Ort::Session> hw_m_session = nullptr;
         Ort::SessionOptions hw_session_options;
         vector<string> hw_m_strInputNames, hw_m_strOutputNames;
         vector<const char*> hw_m_szInputNames;
@@ -42,6 +42,7 @@ namespace funasr {
     public:
         Paraformer();
         ~Paraformer();
+
         void InitAsr(const std::string &am_model, const std::string &am_cmvn, const std::string &am_config, const std::string &token_file, int thread_num);
         // online
         void InitAsr(const std::string &en_model, const std::string &de_model, const std::string &am_cmvn, const std::string &am_config, const std::string &token_file, int thread_num);
@@ -70,7 +71,7 @@ namespace funasr {
         Vocab* GetVocab();
         Vocab* GetLmVocab();
         PhoneSet* GetPhoneSet();
-		
+        
         knf::FbankOptions fbank_opts_;
         vector<float> means_list_;
         vector<float> vars_list_;

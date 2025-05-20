@@ -3,7 +3,6 @@
  * Reserved. MIT License  (https://opensource.org/licenses/MIT)
  */
 /* 2022-2023 by zhaomingwork */
-
 #include "websocket-server.h"
 #ifdef _WIN32
 #include "win_func.h"
@@ -45,8 +44,8 @@ int main(int argc, char* argv[]) {
         false, "/workspace/models", "string");
     TCLAP::ValueArg<std::string> model_dir(
         "", MODEL_DIR,
-        "default: /workspace/models/asr, the asr model path, which contains *.onnx/*.torchscript, config.yaml, am.mvn",
-        false, "/workspace/models/asr", "string");
+        "the asr model path, which contains *.onnx/*.torchscript, config.yaml, am.mvn",
+        false, "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx", "string");
     TCLAP::ValueArg<std::string> model_revision(
         "", "model-revision",
         "ASR model revision",
@@ -62,8 +61,8 @@ int main(int argc, char* argv[]) {
         false, "true", "string");
     TCLAP::ValueArg<std::string> vad_dir(
         "", VAD_DIR,
-        "default: /workspace/models/vad, the vad model path, which contains model_quant.onnx, vad.yaml, vad.mvn",
-        false, "/workspace/models/vad", "string");
+        "the vad model path, which contains model_quant.onnx, vad.yaml, vad.mvn",
+        false, "damo/speech_fsmn_vad_zh-cn-16k-common-onnx", "string");
     TCLAP::ValueArg<std::string> vad_revision(
         "", "vad-revision",
         "VAD model revision",
@@ -75,8 +74,8 @@ int main(int argc, char* argv[]) {
         false, "true", "string");
     TCLAP::ValueArg<std::string> punc_dir(
         "", PUNC_DIR,
-        "default: /workspace/models/punc, the punc model path, which contains model_quant.onnx, punc.yaml", 
-        false, "/workspace/models/punc",
+        "the punc model path, which contains model_quant.onnx, punc.yaml", 
+        false, "damo/punc_ct-transformer_cn-en-common-vocab471067-large-onnx",
         "string");
     TCLAP::ValueArg<std::string> punc_revision(
         "", "punc-revision",
@@ -202,7 +201,7 @@ int main(int argc, char* argv[]) {
 
         std::string python_cmd = "python -m funasr.download.runtime_sdk_download_tool ";
 
-        if(vad_dir.isSet() && !s_vad_path.empty()){
+        if(!s_vad_path.empty()){
             std::string python_cmd_vad;
             std::string down_vad_path;
             std::string down_vad_model;  
@@ -224,21 +223,21 @@ int main(int argc, char* argv[]) {
             }
             down_vad_model = down_vad_path+"/model_quant.onnx";
             if(s_vad_quant=="false" || s_vad_quant=="False" || s_vad_quant=="FALSE"){
-                down_vad_model = down_vad_path+"/model.onnx";
+                down_vad_model = down_vad_path + "/model.onnx";
             }
 
             if (access(down_vad_model.c_str(), F_OK) != 0){
                 LOG(ERROR) << down_vad_model << " do not exists."; 
                 exit(-1);
             }else{
-                model_path[VAD_DIR]=down_vad_path;
+                model_path[VAD_DIR] = down_vad_path;
                 LOG(INFO) << "Set " << VAD_DIR << " : " << model_path[VAD_DIR];
             }
         }else{
             LOG(INFO) << "VAD model is not set, use default.";
         }
 
-        if(model_dir.isSet() && !s_asr_path.empty()){
+        if(!s_asr_path.empty()){
             std::string python_cmd_asr;
             std::string down_asr_path;
             std::string down_asr_model;
@@ -273,7 +272,7 @@ int main(int argc, char* argv[]) {
                 model_path[PUNC_DIR]="";
             }
 
-            if (use_gpu_){
+            if (use_gpu_) {
                 model_type = "torchscript";
                 if (s_blade=="true" || s_blade=="True" || s_blade=="TRUE"){
                     model_type = "bladedisc";
@@ -296,7 +295,7 @@ int main(int argc, char* argv[]) {
                 down_asr_model = down_asr_path+"/model.onnx";
             }
 
-            if (use_gpu_){
+            if (use_gpu_) {
                 down_asr_model = down_asr_path+"/model.torchscript";
                 if (s_blade=="true" || s_blade=="True" || s_blade=="TRUE"){
                     down_asr_model = down_asr_path+"/model_blade.torchscript";
@@ -332,16 +331,12 @@ int main(int argc, char* argv[]) {
                 down_itn_path = s_itn_path;
             } else {
                 // modelscope
-                LOG(INFO) << "Download model: " << s_itn_path
-                            << " from modelscope : "; 
-                python_cmd_itn = python_cmd + " --type onnx " + " --model-name " +
-                        s_itn_path +
+                LOG(INFO) << "Download model: " << s_itn_path << " from modelscope : "; 
+                python_cmd_itn = python_cmd + " --type onnx " + " --model-name " + s_itn_path +
                         " --export-dir " + s_download_model_dir +
                         " --model_revision " + model_path["itn-revision"]
                         + " --export False "; 
-                down_itn_path  =
-                        s_download_model_dir +
-                        "/" + s_itn_path;
+                down_itn_path  = s_download_model_dir + "/" + s_itn_path;
             }
 
             int ret = system(python_cmd_itn.c_str());
@@ -374,16 +369,12 @@ int main(int argc, char* argv[]) {
                 down_lm_path = s_lm_path;
             } else {
                 // modelscope
-                LOG(INFO) << "Download model: " << s_lm_path
-                            << " from modelscope : "; 
-                python_cmd_lm = python_cmd + " --type onnx " + " --model-name " +
-                        s_lm_path +
+                LOG(INFO) << "Download model: " << s_lm_path << " from modelscope : "; 
+                python_cmd_lm = python_cmd + " --type onnx " + " --model-name " + s_lm_path +
                         " --export-dir " + s_download_model_dir +
                         " --model_revision " + model_path["lm-revision"]
                         + " --export False "; 
-                down_lm_path  =
-                        s_download_model_dir +
-                        "/" + s_lm_path;
+                down_lm_path  = s_download_model_dir + "/" + s_lm_path;
             }
 
             int ret = system(python_cmd_lm.c_str());
@@ -448,14 +439,8 @@ int main(int argc, char* argv[]) {
     int s_port = port.getValue();
     int s_io_thread_num = io_thread_num.getValue();
     int s_decoder_thread_num = decoder_thread_num.getValue();
-
     int s_model_thread_num = model_thread_num.getValue();
-
-    asio::io_context io_decoder;  // context for decoding
-    asio::io_context io_server;   // context for server
-
-    std::vector<std::thread> decoder_threads;
-
+    
     std::string s_certfile = certfile.getValue();
     std::string s_keyfile = keyfile.getValue();
     
@@ -471,66 +456,58 @@ int main(int argc, char* argv[]) {
       is_ssl = true;
     }
 
-    auto conn_guard = asio::make_work_guard(
-        io_decoder);  // make sure threads can wait in the queue
-    auto server_guard = asio::make_work_guard(
-        io_server);  // make sure threads can wait in the queue
-    // create threads pool
-    for (int32_t i = 0; i < s_decoder_thread_num; ++i) {
-      decoder_threads.emplace_back([&io_decoder]() { io_decoder.run(); });
+    FUNASR_HANDLE asr_handle = FunOfflineInit(model_path, s_model_thread_num, use_gpu, batch_size);
+    LOG(INFO) << "model successfully inited";
+
+    hv::EventLoopThreadPool io_decoder;
+    io_decoder.setThreadNum(s_decoder_thread_num);
+    io_decoder.start();
+    WebSocketServer ws(&io_decoder, asr_handle);
+
+    hv::WebSocketServer server;
+    server.setThreadNum(io_thread_num);
+    server.port = s_port;
+    if(is_ssl){
+      server.https_port = s_port + 1;
+      hssl_ctx_opt_t param;
+      memset(&param, 0, sizeof(param));
+      param.crt_file = s_certfile.c_str();
+      param.key_file = s_keyfile.c_str();
+      param.endpoint = HSSL_SERVER;
+      if (server.newSslCtx(&param) != 0) {
+        fprintf(stderr, "new SSL_CTX failed!\n");
+        return -20;
+      }
     }
+    hv::HttpService http;
+    http.Static("/", "./static");
+    http.POST("/", [&](const HttpRequestPtr& req, const HttpResponseWriterPtr& writer) {
+      auto msg = std::make_shared<FUNASR_MESSAGE>();
+      msg->decoder_handle = FunASRWfstDecoderInit(asr_handle, ASR_OFFLINE, global_beam_, lattice_beam_, am_scale_);
+      std::string payload = req->GetFormData("file");
+      msg->samples->assign(payload.begin(), payload.end());
+      msg->config(req->json, asr_handle);
+      io_decoder.loop()->runInLoop([msg, asr_handle, payload, writer]() {
+        nlohmann::json resp;
+        msg->decode(*msg->samples, resp, asr_handle);
+        writer->Begin();
+        writer->EndHeaders("Content-Type", "application/json");
+        writer->WriteBody(resp.dump());
+        writer->close();
+      });
+    });
+    server.registerHttpService(&http);
+    server.registerWebSocketService(&ws);
 
-    server server_;  // server for websocket
-    wss_server wss_server_;
-    server* server = nullptr;
-    wss_server* wss_server = nullptr;
-    if (is_ssl) {
-      LOG(INFO)<< "SSL is opened!";
-      wss_server_.init_asio(&io_server);  // init asio
-      wss_server_.set_reuse_addr(
-          true);  // reuse address as we create multiple threads
-
-      // list on port for accept
-      wss_server_.listen(asio::ip::address::from_string(s_listen_ip), s_port);
-      wss_server = &wss_server_;
-    } else {
-      LOG(INFO)<< "SSL is closed!";
-      server_.init_asio(&io_server);  // init asio
-      server_.set_reuse_addr(
-          true);  // reuse address as we create multiple threads
-
-      // list on port for accept
-      server_.listen(asio::ip::address::from_string(s_listen_ip), s_port);
-      server = &server_;
-    }
-
-
-    WebSocketServer websocket_srv(
-        io_decoder, is_ssl, server, wss_server, s_certfile,
-        s_keyfile);  // websocket server for asr engine
-    websocket_srv.initAsr(model_path, s_model_thread_num, use_gpu_, batch_size_);  // init asr model
+    server.start();
 
     LOG(INFO) << "decoder-thread-num: " << s_decoder_thread_num;
     LOG(INFO) << "io-thread-num: " << s_io_thread_num;
     LOG(INFO) << "model-thread-num: " << s_model_thread_num;
     LOG(INFO) << "asr model init finished. listen on port:" << s_port;
 
-    // Start the ASIO network io_service run loop
-    std::vector<std::thread> ts;
-    // create threads for io network
-    for (size_t i = 0; i < s_io_thread_num; i++) {
-      ts.emplace_back([&io_server]() { io_server.run(); });
-    }
-    // wait for theads
-    for (size_t i = 0; i < s_io_thread_num; i++) {
-      ts[i].join();
-    }
-
-    // wait for theads
-    for (auto& t : decoder_threads) {
-      t.join();
-    }
-
+    // press Enter to stop
+    while (getchar() != '\n');
   } catch (std::exception const& e) {
     LOG(ERROR) << "Error: " << e.what();
   }

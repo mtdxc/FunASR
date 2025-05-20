@@ -11,10 +11,9 @@
 using namespace std;
 namespace funasr {
 
-Paraformer::Paraformer()
-:use_hotword(false),
- env_(ORT_LOGGING_LEVEL_ERROR, "paraformer"),session_options_{},
- hw_env_(ORT_LOGGING_LEVEL_ERROR, "paraformer_hw"),hw_session_options{} {
+Paraformer::Paraformer() : use_hotword(false),
+  env_(ORT_LOGGING_LEVEL_ERROR, "paraformer"), session_options_{},
+  hw_env_(ORT_LOGGING_LEVEL_ERROR, "paraformer_hw"), hw_session_options{} {
 }
 
 // offline
@@ -92,14 +91,14 @@ void Paraformer::InitAsr(const std::string &en_model, const std::string &de_mode
     string strName;
     GetInputName(encoder_session_.get(), strName);
     en_strInputNames.push_back(strName.c_str());
-    GetInputName(encoder_session_.get(), strName,1);
+    GetInputName(encoder_session_.get(), strName, 1);
     en_strInputNames.push_back(strName);
     
     GetOutputName(encoder_session_.get(), strName);
     en_strOutputNames.push_back(strName);
-    GetOutputName(encoder_session_.get(), strName,1);
+    GetOutputName(encoder_session_.get(), strName, 1);
     en_strOutputNames.push_back(strName);
-    GetOutputName(encoder_session_.get(), strName,2);
+    GetOutputName(encoder_session_.get(), strName, 2);
     en_strOutputNames.push_back(strName);
 
     for (auto& item : en_strInputNames)
@@ -110,7 +109,7 @@ void Paraformer::InitAsr(const std::string &en_model, const std::string &de_mode
     // decoder
     int de_input_len = 4 + fsmn_layers;
     int de_out_len = 2 + fsmn_layers;
-    for(int i=0;i<de_input_len; i++){
+    for(int i=0; i<de_input_len; i++){
         GetInputName(decoder_session_.get(), strName, i);
         de_strInputNames.push_back(strName.c_str());
     }
@@ -153,9 +152,8 @@ void Paraformer::InitLm(const std::string &lm_file,
                         const std::string &lm_cfg_file, 
                         const std::string &lex_file) {
     try {
-        lm_ = std::shared_ptr<fst::Fst<fst::StdArc>>(
-            fst::Fst<fst::StdArc>::Read(lm_file));
-        if (lm_){
+        lm_.reset(fst::Fst<fst::StdArc>::Read(lm_file));
+        if (lm_) {
             lm_vocab = new Vocab(lm_cfg_file.c_str(), lex_file.c_str());
             LOG(INFO) << "Successfully load lm file " << lm_file;
         }else{
@@ -224,8 +222,6 @@ void Paraformer::LoadOnlineConfigFromYaml(const char* filename){
         this->tail_alphas = predictor_conf["tail_threshold"].as<double>();
 
         this->asr_sample_rate = frontend_conf["fs"].as<int>();
-
-
     }catch(exception const &e){
         LOG(ERROR) << "Error when load argument from vad config YAML.";
         exit(-1);
@@ -246,10 +242,10 @@ void Paraformer::InitHwCompiler(const std::string &hw_model, int thread_num) {
         exit(-1);
     }
 
-    string strName;
+    std::string strName;
     GetInputName(hw_m_session.get(), strName);
     hw_m_strInputNames.push_back(strName.c_str());
-    //GetInputName(hw_m_session.get(), strName,1);
+    //GetInputName(hw_m_session.get(), strName, 1);
     //hw_m_strInputNames.push_back(strName);
     
     GetOutputName(hw_m_session.get(), strName);
@@ -318,8 +314,8 @@ void Paraformer::LoadCmvn(const char *filename)
         LOG(ERROR) << "Failed to open file: " << filename;
         exit(-1);
     }
-    string line;
 
+    string line;
     while (getline(cmvn_stream, line)) {
         istringstream iss(line);
         vector<string> line_item{istream_iterator<string>{iss}, istream_iterator<string>{}};
@@ -358,9 +354,10 @@ string Paraformer::GreedySearch(float * in, int n_len,  int64_t token_nums, bool
         FindMax(in + i * token_nums, token_nums, max_val, max_idx);
         hyps.push_back(max_idx);
     }
-    if(!is_stamp){
+
+    if (!is_stamp) {
         return vocab->Vector2StringV2(hyps, language);
-    }else{
+    } else {
         std::vector<string> char_list;
         std::vector<std::vector<float>> timestamp_list;
         std::string res_str;
@@ -453,9 +450,9 @@ std::vector<std::string> Paraformer::Forward(float** din, int* len, bool input_f
     }
 
 #ifdef _WIN_X86
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 #else
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 #endif
 
     const int64_t input_shape_[3] = {1, num_frames, feat_dim};
@@ -495,7 +492,8 @@ std::vector<std::string> Paraformer::Forward(float** din, int* len, bool input_f
 
             input_onnx.emplace_back(std::move(onnx_hw_emb));
         }
-    }catch (std::exception const &e)
+    }
+    catch (std::exception const &e)
     {
         LOG(ERROR)<<e.what();
         results.push_back(result);
@@ -503,7 +501,9 @@ std::vector<std::string> Paraformer::Forward(float** din, int* len, bool input_f
     }
 
     try {
-        auto outputTensor = m_session_->Run(Ort::RunOptions{nullptr}, m_szInputNames.data(), input_onnx.data(), input_onnx.size(), m_szOutputNames.data(), m_szOutputNames.size());
+        auto outputTensor = m_session_->Run(Ort::RunOptions{nullptr}, 
+            m_szInputNames.data(), input_onnx.data(), input_onnx.size(), 
+            m_szOutputNames.data(), m_szOutputNames.size());
         std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
         //LOG(INFO) << "paraformer out shape " << outputShape[0] << " " << outputShape[1] << " " << outputShape[2];
 
@@ -562,6 +562,7 @@ std::vector<std::vector<float>> Paraformer::CompileHotwordEmbedding(std::string 
         hw_emb.push_back(vec);
         return hw_emb;
     }
+
     int max_hotword_len = 10;
     std::vector<int32_t> hotword_matrix;
     std::vector<int32_t> lengths;
@@ -583,23 +584,25 @@ std::vector<std::vector<float>> Paraformer::CompileHotwordEmbedding(std::string 
             chars.insert(chars.end(), tokens.begin(), tokens.end());
           }
         }
-        if(chars.size()==0){
+        if (chars.empty()) {
             continue;
         }
+
+        int chs_oov = false;
         std::vector<int32_t> hw_vector(max_hotword_len, 0);
         int vector_len = std::min(max_hotword_len, (int)chars.size());
-        int chs_oov = false;
         for (int i=0; i<vector_len; i++) {
           hw_vector[i] = phone_set_->String2Id(chars[i]);
-          if(hw_vector[i] == -1){
+          if (hw_vector[i] == -1) {
             chs_oov = true;
             break;
           }
         }
-        if(chs_oov){
+        if (chs_oov) {
           LOG(INFO) << "OOV: " << hotword;
           continue;
         }
+
         LOG(INFO) << hotword;
         lengths.push_back(vector_len);
         real_hw_size += 1;
@@ -607,23 +610,21 @@ std::vector<std::vector<float>> Paraformer::CompileHotwordEmbedding(std::string 
       }
       hotword_size = real_hw_size + 1;
     }
+
     std::vector<int32_t> blank_vec(max_hotword_len, 0);
     blank_vec[0] = 1;
     hotword_matrix.insert(hotword_matrix.end(), blank_vec.begin(), blank_vec.end());
     lengths.push_back(1);
 
 #ifdef _WIN_X86
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 #else
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 #endif
 
     const int64_t input_shape_[2] = {hotword_size, max_hotword_len};
     Ort::Value onnx_hotword = Ort::Value::CreateTensor<int32_t>(m_memoryInfo,
-        (int32_t*)hotword_matrix.data(),
-        hotword_size * max_hotword_len,
-        input_shape_,
-        2);
+        (int32_t*)hotword_matrix.data(), hotword_size * max_hotword_len, input_shape_, 2);
     LOG(INFO) << "clas shape " << hotword_size << " " << max_hotword_len << std::endl;
     
     std::vector<Ort::Value> input_onnx;
@@ -631,7 +632,9 @@ std::vector<std::vector<float>> Paraformer::CompileHotwordEmbedding(std::string 
 
     std::vector<std::vector<float>> result;
     try {
-        auto outputTensor = hw_m_session->Run(Ort::RunOptions{nullptr}, hw_m_szInputNames.data(), input_onnx.data(), input_onnx.size(), hw_m_szOutputNames.data(), hw_m_szOutputNames.size());
+        auto outputTensor = hw_m_session->Run(Ort::RunOptions{nullptr}, 
+            hw_m_szInputNames.data(), input_onnx.data(), input_onnx.size(), 
+            hw_m_szOutputNames.data(), hw_m_szOutputNames.size());
         std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
 
         int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), 1, std::multiplies<int64_t>());

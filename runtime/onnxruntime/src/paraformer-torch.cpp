@@ -11,8 +11,7 @@
 using namespace std;
 namespace funasr {
 
-ParaformerTorch::ParaformerTorch()
-:use_hotword(false){
+ParaformerTorch::ParaformerTorch():use_hotword(false){
 }
 
 // offline
@@ -68,8 +67,7 @@ void ParaformerTorch::InitLm(const std::string &lm_file,
                         const std::string &lm_cfg_file, 
                         const std::string &lex_file) {
     try {
-        lm_ = std::shared_ptr<fst::Fst<fst::StdArc>>(
-            fst::Fst<fst::StdArc>::Read(lm_file));
+        lm_.reset(fst::Fst<fst::StdArc>::Read(lm_file));
         if (lm_){
             lm_vocab = new Vocab(lm_cfg_file.c_str(), lex_file.c_str());
             LOG(INFO) << "Successfully load lm file " << lm_file;

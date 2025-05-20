@@ -16,9 +16,8 @@ class CTTransformerOnline : public PuncModel {
 private:
 
 	CTokenizer m_tokenizer;
-	vector<string> m_strInputNames, m_strOutputNames;
-	vector<const char*> m_szInputNames;
-	vector<const char*> m_szOutputNames;
+	std::vector<std::string> m_strInputNames, m_strOutputNames;
+	std::vector<const char*> m_szInputNames, m_szOutputNames;
 
 	std::shared_ptr<Ort::Session> m_session;
     Ort::Env env_;
@@ -26,12 +25,12 @@ private:
 public:
 
 	CTTransformerOnline();
-	void InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num);
 	~CTTransformerOnline();
-	vector<int>  Infer(vector<int32_t> input_data, int nCacheSize);
-	string AddPunc(const char* sz_input, vector<string> &arr_cache, std::string language="zh-cn");
-	void Transport(vector<float>& In, int nRows, int nCols);
-	void VadMask(int size, int vad_pos,vector<float>& Result);
-	void Triangle(int text_length, vector<float>& Result);
+	void InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num);
+	std::vector<int>  Infer(std::vector<int32_t> input_data, int nCacheSize);
+	std::string AddPunc(const char* sz_input, std::vector<std::string> &arr_cache, std::string language="zh-cn");
+	void Transport(std::vector<float>& In, int nRows, int nCols);
+	void VadMask(int size, int vad_pos, std::vector<float>& Result);
+	void Triangle(int text_length, std::vector<float>& Result);
 };
 } // namespace funasr

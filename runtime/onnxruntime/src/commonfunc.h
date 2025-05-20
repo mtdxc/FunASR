@@ -38,11 +38,10 @@ inline std::wstring String2wstring(const std::string& str, const std::string& lo
     return strCnv.from_bytes(str);
 }
 
-inline std::wstring  StrToWstr(std::string str) {
+inline std::wstring StrToWstr(std::string str) {
     if (str.length() == 0)
         return L"";
     return  String2wstring(str, "zh-CN");
-
 }
 
 #else
@@ -58,14 +57,12 @@ inline void GetInputName(Ort::Session* session, string& inputName,int nIndex=0) 
     size_t numInputNodes = session->GetInputCount();
     if (numInputNodes > 0) {
         Ort::AllocatorWithDefaultOptions allocator;
-        {
-            auto t = session->GetInputNameAllocated(nIndex, allocator);
-            inputName = t.get();
-        }
+        auto t = session->GetInputNameAllocated(nIndex, allocator);
+        inputName = t.get();
     }
 }
 
-inline void GetInputNames(Ort::Session* session, std::vector<std::string> &m_strInputNames,
+inline int GetInputNames(Ort::Session* session, std::vector<std::string> &m_strInputNames,
                    std::vector<const char *> &m_szInputNames) {
     Ort::AllocatorWithDefaultOptions allocator;
     size_t numNodes = session->GetInputCount();
@@ -76,20 +73,19 @@ inline void GetInputNames(Ort::Session* session, std::vector<std::string> &m_str
         m_strInputNames[i] = t.get();
         m_szInputNames[i] = m_strInputNames[i].c_str();
     }
+    return numNodes;
 }
 
 inline void GetOutputName(Ort::Session* session, string& outputName, int nIndex = 0) {
     size_t numOutputNodes = session->GetOutputCount();
     if (numOutputNodes > 0) {
         Ort::AllocatorWithDefaultOptions allocator;
-        {
-            auto t = session->GetOutputNameAllocated(nIndex, allocator);
-            outputName = t.get();
-        }
+        auto t = session->GetOutputNameAllocated(nIndex, allocator);
+        outputName = t.get();
     }
 }
 
-inline void GetOutputNames(Ort::Session* session, std::vector<std::string> &m_strOutputNames,
+inline int GetOutputNames(Ort::Session* session, std::vector<std::string> &m_strOutputNames,
                    std::vector<const char *> &m_szOutputNames) {
     Ort::AllocatorWithDefaultOptions allocator;
     size_t numNodes = session->GetOutputCount();
@@ -100,6 +96,7 @@ inline void GetOutputNames(Ort::Session* session, std::vector<std::string> &m_st
         m_strOutputNames[i] = t.get();
         m_szOutputNames[i] = m_strOutputNames[i].c_str();
     }
+    return numNodes;
 }
 
 template <class ForwardIterator>

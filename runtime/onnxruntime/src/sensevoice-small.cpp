@@ -10,9 +10,8 @@
 using namespace std;
 namespace funasr {
 
-SenseVoiceSmall::SenseVoiceSmall()
-:use_hotword(false),
- env_(ORT_LOGGING_LEVEL_ERROR, "sensevoice"),session_options_{} {
+SenseVoiceSmall::SenseVoiceSmall():use_hotword(false),
+  env_(ORT_LOGGING_LEVEL_ERROR, "sensevoice"), session_options_{} {
 }
 
 // offline
@@ -168,6 +167,7 @@ void SenseVoiceSmall::LoadOnlineConfigFromYaml(const char* filename){
         this->frame_shift = frontend_conf["frame_shift"].as<int>();
         this->lfr_m = frontend_conf["lfr_m"].as<int>();
         this->lfr_n = frontend_conf["lfr_n"].as<int>();
+        this->asr_sample_rate = frontend_conf["fs"].as<int>();
 
         this->encoder_size = encoder_conf["output_size"].as<int>();
         this->fsmn_dims = encoder_conf["output_size"].as<int>();
@@ -177,9 +177,6 @@ void SenseVoiceSmall::LoadOnlineConfigFromYaml(const char* filename){
 
         this->cif_threshold = predictor_conf["threshold"].as<double>();
         this->tail_alphas = predictor_conf["tail_threshold"].as<double>();
-
-        this->asr_sample_rate = frontend_conf["fs"].as<int>();
-
 
     }catch(exception const &e){
         LOG(ERROR) << "Error when load argument from vad config YAML.";
@@ -207,11 +204,11 @@ void SenseVoiceSmall::LoadConfigFromYaml(const char* filename){
         this->frame_shift = frontend_conf["frame_shift"].as<int>();
         this->lfr_m = frontend_conf["lfr_m"].as<int>();
         this->lfr_n = frontend_conf["lfr_n"].as<int>();
+        this->asr_sample_rate = frontend_conf["fs"].as<int>();
 
         this->encoder_size = encoder_conf["output_size"].as<int>();
         this->fsmn_dims = encoder_conf["output_size"].as<int>();
 
-        this->asr_sample_rate = frontend_conf["fs"].as<int>();
     }catch(exception const &e){
         LOG(ERROR) << "Error when load argument from vad config YAML.";
         exit(-1);
@@ -460,22 +457,19 @@ std::vector<std::string> SenseVoiceSmall::Forward(float** din, int* len, bool in
     if(lid_map.find(svs_lang) != lid_map.end()){
         svs_lid = lid_map[svs_lang];
     }
-    if(svs_itn){
+    if (svs_itn) {
         svs_itnid = 14;
     }
 
 #ifdef _WIN_X86
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 #else
-        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 #endif
 
     const int64_t input_shape_[3] = {1, num_frames, feat_dim};
     Ort::Value onnx_feats = Ort::Value::CreateTensor<float>(m_memoryInfo,
-        wav_feats.data(),
-        wav_feats.size(),
-        input_shape_,
-        3);
+        wav_feats.data(),  wav_feats.size(), input_shape_, 3);
 
     const int64_t paraformer_length_shape[1] = {1};
     std::vector<int32_t> paraformer_length;
@@ -502,7 +496,9 @@ std::vector<std::string> SenseVoiceSmall::Forward(float** din, int* len, bool in
     input_onnx.emplace_back(std::move(onnx_itn));
 
     try {
-        auto outputTensor = m_session_->Run(Ort::RunOptions{nullptr}, m_szInputNames.data(), input_onnx.data(), input_onnx.size(), m_szOutputNames.data(), m_szOutputNames.size());
+        auto outputTensor = m_session_->Run(Ort::RunOptions{nullptr}, 
+            m_szInputNames.data(), input_onnx.data(), input_onnx.size(), 
+            m_szOutputNames.data(), m_szOutputNames.size());
         float* floatData = outputTensor[0].GetTensorMutableData<float>();
         std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
 

@@ -11,6 +11,7 @@ using namespace std;
 namespace funasr {
 typedef unsigned short          U16CHAR_T;
 extern float *LoadParams(const char *filename);
+int ComputeFrameNum(int sample_length, int frame_sample_length, int frame_shift_sample_length);
 
 extern void SaveDataFile(const char *filename, void *data, uint32_t len);
 extern void Relu(Tensor<float> *din);

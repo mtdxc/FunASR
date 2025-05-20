@@ -212,7 +212,6 @@ int main(int argc, char *argv[])
     struct timeval start, end;
     gettimeofday(&start, nullptr);
     FUNASR_HANDLE asr_handle=FunASRInit(model_path, 1, ASR_ONLINE);
-
     if (!asr_handle)
     {
         LOG(ERROR) << "FunASR init failed";

@@ -2,6 +2,14 @@
 #include "precomp.h"
 
 namespace funasr {
+int ComputeFrameNum(int sample_length, int frame_sample_length, int frame_shift_sample_length) {
+    int frame_num = static_cast<int>((sample_length - frame_sample_length) / frame_shift_sample_length + 1);
+    if (frame_num >= 1 && sample_length >= frame_sample_length)
+        return frame_num;
+    else
+        return 0;
+}
+
 float *LoadParams(const char *filename)
 {
 

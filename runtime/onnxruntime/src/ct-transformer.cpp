@@ -6,12 +6,13 @@
 #include "precomp.h"
 
 namespace funasr {
-CTTransformer::CTTransformer()
-:env_(ORT_LOGGING_LEVEL_ERROR, ""),session_options{}
-{
+CTTransformer::CTTransformer():env_(ORT_LOGGING_LEVEL_ERROR, ""),session_options{} {
 }
 
-void CTTransformer::InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num){
+CTTransformer::~CTTransformer() {
+}
+
+void CTTransformer::InitPunc(const std::string &punc_model, const std::string &punc_config, const std::string &token_file, int thread_num) {
     session_options.SetIntraOpNumThreads(thread_num);
     session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     session_options.DisableCpuMemArena();
@@ -32,11 +33,7 @@ void CTTransformer::InitPunc(const std::string &punc_model, const std::string &p
     m_tokenizer.JiebaInit(punc_config);
 }
 
-CTTransformer::~CTTransformer()
-{
-}
-
-string CTTransformer::AddPunc(const char* sz_input, std::string language)
+std::string CTTransformer::AddPunc(const char* sz_input, std::string language)
 {
     string strResult;
     vector<string> strOut;
@@ -156,30 +153,33 @@ string CTTransformer::AddPunc(const char* sz_input, std::string language)
 
 vector<int> CTTransformer::Infer(vector<int32_t> input_data)
 {
-    Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     vector<int> punction;
-    std::array<int64_t, 2> input_shape_{ 1, (int64_t)input_data.size()};
-    Ort::Value onnx_input = Ort::Value::CreateTensor<int32_t>(
-        m_memoryInfo,
-        input_data.data(),
-        input_data.size(),
-        input_shape_.data(),
-        input_shape_.size());
-
-    std::array<int32_t,1> text_lengths{ (int32_t)input_data.size() };
-    std::array<int64_t,1> text_lengths_dim{ 1 };
-    Ort::Value onnx_text_lengths = Ort::Value::CreateTensor(
-        m_memoryInfo,
-        text_lengths.data(),
-        text_lengths.size() * sizeof(int32_t),
-        text_lengths_dim.data(),
-        text_lengths_dim.size(), ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
-    std::vector<Ort::Value> input_onnx;
-    input_onnx.emplace_back(std::move(onnx_input));
-    input_onnx.emplace_back(std::move(onnx_text_lengths));
-        
     try {
-        auto outputTensor = m_session->Run(Ort::RunOptions{nullptr}, m_szInputNames.data(), input_onnx.data(), m_szInputNames.size(), m_szOutputNames.data(), m_szOutputNames.size());
+        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        std::array<int64_t, 2> input_shape_{ 1, (int64_t)input_data.size()};
+        Ort::Value onnx_input = Ort::Value::CreateTensor<int32_t>(
+            m_memoryInfo,
+            input_data.data(),
+            input_data.size(),
+            input_shape_.data(),
+            input_shape_.size());
+
+        std::array<int32_t,1> text_lengths{ (int32_t)input_data.size() };
+        std::array<int64_t,1> text_lengths_dim{ 1 };
+        Ort::Value onnx_text_lengths = Ort::Value::CreateTensor(
+            m_memoryInfo,
+            text_lengths.data(),
+            text_lengths.size() * sizeof(int32_t),
+            text_lengths_dim.data(),
+            text_lengths_dim.size(), ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32);
+
+        std::vector<Ort::Value> input_onnx;
+        input_onnx.emplace_back(std::move(onnx_input));
+        input_onnx.emplace_back(std::move(onnx_text_lengths));
+
+        auto outputTensor = m_session->Run(Ort::RunOptions{nullptr}, 
+            m_szInputNames.data(), input_onnx.data(), m_szInputNames.size(), 
+            m_szOutputNames.data(), m_szOutputNames.size());
         std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
 
         int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), 1, std::multiplies<int64_t>());

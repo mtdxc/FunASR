@@ -3,9 +3,6 @@
 namespace funasr {
 VadModel *CreateVadModel(std::map<std::string, std::string>& model_path, int thread_num)
 {
-    VadModel *mm;
-    mm = new FsmnVad();
-
     string vad_model_path;
     string vad_cmvn_path;
     string vad_config_path;
@@ -16,16 +13,15 @@ VadModel *CreateVadModel(std::map<std::string, std::string>& model_path, int thr
     }
     vad_cmvn_path = PathAppend(model_path.at(MODEL_DIR), VAD_CMVN_NAME);
     vad_config_path = PathAppend(model_path.at(MODEL_DIR), VAD_CONFIG_NAME);
-
+    
+    VadModel *mm = new FsmnVad();
     mm->InitVad(vad_model_path, vad_cmvn_path, vad_config_path, thread_num);
     return mm;
 }
 
 VadModel *CreateVadModel(void* fsmnvad_handle)
 {
-    VadModel *mm;
-    mm = new FsmnVadOnline((FsmnVad*)fsmnvad_handle);
-    return mm;
+    return new FsmnVadOnline((FsmnVad*)fsmnvad_handle);
 }
 
 } // namespace funasr

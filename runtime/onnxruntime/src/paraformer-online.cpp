@@ -250,8 +250,7 @@ void ParaformerOnline::GetPosEmb(std::vector<std::vector<float>> &wav_feats, int
 
     for (i = 0; i < feat_dim/2; i++) {
         float tmptime = exp(i * scale);
-        int j;
-        for (j = 0; j < mm; j++) {
+        for (int j = 0; j < mm; j++) {
             int sin_idx = j * feat_dim + i;
             int cos_idx = j * feat_dim + i + feat_dim/2;
             float coe = tmptime * (j + 1);
@@ -416,24 +415,19 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
 {
     string result;
     try{
+#ifdef _WIN_X86
+        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+#else
+        Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+#endif
         int32_t num_frames = chunk_feats.size();
-
-    #ifdef _WIN_X86
-            Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-    #else
-            Ort::MemoryInfo m_memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    #endif
         const int64_t input_shape_[3] = {1, num_frames, feat_dims};
         std::vector<float> wav_feats;
         for (const auto &chunk_feat: chunk_feats) {
             wav_feats.insert(wav_feats.end(), chunk_feat.begin(), chunk_feat.end());
         }
         Ort::Value onnx_feats = Ort::Value::CreateTensor<float>(
-            m_memoryInfo,
-            wav_feats.data(),
-            wav_feats.size(),
-            input_shape_,
-            3);
+            m_memoryInfo, wav_feats.data(), wav_feats.size(), input_shape_, 3);
 
         const int64_t paraformer_length_shape[1] = {1};
         std::vector<int32_t> paraformer_length;
@@ -445,7 +439,9 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
         input_onnx.emplace_back(std::move(onnx_feats));
         input_onnx.emplace_back(std::move(onnx_feats_len)); 
         
-        auto encoder_tensor = encoder_session_->Run(Ort::RunOptions{nullptr}, en_szInputNames_.data(), input_onnx.data(), input_onnx.size(), en_szOutputNames_.data(), en_szOutputNames_.size());
+        auto encoder_tensor = encoder_session_->Run(Ort::RunOptions{nullptr}, 
+            en_szInputNames_.data(), input_onnx.data(), input_onnx.size(), 
+            en_szOutputNames_.data(), en_szOutputNames_.size());
 
         // get enc_vec
         std::vector<int64_t> enc_shape = encoder_tensor[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -468,7 +464,6 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
         std::vector<std::vector<float>> list_frame;
         CifSearch(enc_vec, alpha_vec, input_finished, list_frame);
 
-        
         if(list_frame.size()>0){
             // enc
             decoder_onnx.insert(decoder_onnx.begin(), std::move(encoder_tensor[0]));
@@ -482,11 +477,7 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
                 emb_input.insert(emb_input.end(), list_frame_.begin(), list_frame_.end());
             }
             Ort::Value onnx_emb = Ort::Value::CreateTensor<float>(
-                m_memoryInfo,
-                emb_input.data(),
-                emb_input.size(),
-                emb_shape_,
-                3);
+                m_memoryInfo, emb_input.data(), emb_input.size(), emb_shape_, 3);
             decoder_onnx.insert(decoder_onnx.begin()+2, std::move(onnx_emb));
 
             // acoustic_embeds_len
@@ -497,11 +488,14 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
                 m_memoryInfo, emb_length.data(), emb_length.size(), emb_length_shape, 1);
             decoder_onnx.insert(decoder_onnx.begin()+3, std::move(onnx_emb_len));
 
-            auto decoder_tensor = decoder_session_->Run(Ort::RunOptions{nullptr}, de_szInputNames_.data(), decoder_onnx.data(), decoder_onnx.size(), de_szOutputNames_.data(), de_szOutputNames_.size());
+            auto decoder_tensor = decoder_session_->Run(Ort::RunOptions{nullptr}, 
+                de_szInputNames_.data(), decoder_onnx.data(), decoder_onnx.size(), 
+                de_szOutputNames_.data(), de_szOutputNames_.size());
             // fsmn cache
             try{
                 decoder_onnx.clear();
-            }catch (std::exception const &e)
+            }
+            catch (std::exception const &e)
             {
                 LOG(ERROR)<<e.what();
                 return result;
@@ -514,7 +508,8 @@ string ParaformerOnline::ForwardChunk(std::vector<std::vector<float>> &chunk_fea
             float* float_data = decoder_tensor[0].GetTensorMutableData<float>();
             result = offline_handle_->GreedySearch(float_data, list_frame.size(), decoder_shape[2]);
         }
-    }catch (std::exception const &e)
+    }
+    catch (std::exception const &e)
     {
         LOG(ERROR)<<e.what();
         return result;

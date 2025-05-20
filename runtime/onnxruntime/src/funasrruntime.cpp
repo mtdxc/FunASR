@@ -844,7 +844,7 @@
 			funasr::TpassStream* tpass_stream = (funasr::TpassStream*)handle;
 			auto paraformer = dynamic_cast<funasr::Paraformer*>(tpass_stream->asr_handle.get());
 			if(paraformer !=nullptr){
-				if (paraformer->lm_){
+				if(paraformer->lm_){
 					mm = new funasr::WfstDecoder(paraformer->lm_.get(),
 						paraformer->GetPhoneSet(), paraformer->GetLmVocab(), glob_beam, lat_beam, am_scale);
 				}
@@ -867,7 +867,7 @@
 	_FUNASRAPI void FunASRWfstDecoderUninit(FUNASR_DEC_HANDLE handle)
 	{
 		funasr::WfstDecoder* wfst_decoder = (funasr::WfstDecoder*)handle;
-		if (!wfst_decoder)
+		if (wfst_decoder)
 			return;
 		delete wfst_decoder;
 	}
