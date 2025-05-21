@@ -62,10 +62,11 @@ class DLLAPI Audio {
     queue<AudioFrame *> asr_online_queue;
     queue<AudioFrame *> asr_offline_queue;
     int dest_sample_rate;
+    AudioFrame* copyFrame(int start, int duration, bool is_final);
   public:
-    Audio(int data_type);
-    Audio(int model_sample_rate,int data_type);
-    Audio(int model_sample_rate,int data_type, int size);
+    Audio(int data_type) : Audio(MODEL_SAMPLE_RATE, data_type, 1360) {}
+    Audio(int model_sample_rate, int data_type) : Audio(model_sample_rate, data_type, 1360){}
+    Audio(int model_sample_rate, int data_type, int size);
     ~Audio();
     
     void ClearQueue(std::queue<AudioFrame*>& q);
@@ -96,20 +97,20 @@ class DLLAPI Audio {
     void Split(VadModel* vad_obj, vector<std::vector<int>>& vad_segments, bool input_finished=true);
     void Split(VadModel* vad_obj, int chunk_len, bool input_finished=true, ASR_TYPE asr_mode=ASR_TWO_PASS);
 
-    float GetTimeLen();
-    int GetQueueSize() { return (int)frame_queue.size(); }
-    char* GetSpeechChar(){return speech_char;}
-    int GetSpeechLen(){return speech_len;}
+    float GetTimeLen() const { return (float)speech_len / dest_sample_rate; }
+    int GetQueueSize() const { return (int)frame_queue.size(); }
+    char* GetSpeechChar(){ return speech_char; }
+    int GetSpeechLen() const { return speech_len; }
 
     // 2pass
     vector<float> all_samples;
     int offset = 0;
     int speech_start=-1, speech_end=0;
     int speech_offline_start=-1;
-
+    // 1ms采样数，正常是16
     int seg_sample = MODEL_SAMPLE_RATE/1000;
     bool LoadPcmwavOnline(const char* buf, int n_file_len, int32_t* sampling_rate);
-    void ResetIndex(){
+    void ResetIndex() {
       speech_start=-1;
       speech_end=0;
       speech_offline_start=-1;
